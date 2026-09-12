@@ -1,6 +1,6 @@
 {
   "name": "@alive5/cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Alive5 in your terminal. Built for people and agents.",
   "type": "module",
   "bin": {
@@ -19,16 +19,23 @@
     "start": "node bin/alive5.js",
     "test": "node --test",
     "check": "prettier --check . && node --test",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "test:tui": "node --test test/tui.test.js",
+    "demo": "node scripts/tui-demo.mjs",
+    "capture": "node scripts/capture-tui.mjs"
   },
   "license": "UNLICENSED",
   "private": true,
   "dependencies": {
     "@clack/prompts": "1.8.0",
     "commander": "15.0.0",
-    "picocolors": "1.1.1"
+    "picocolors": "1.1.1",
+    "string-width": "8.2.2"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "1.0.9",
+    "@xterm/headless": "6.0.0",
+    "node-pty": "1.1.0",
     "prettier": "3.9.6"
   }
 }

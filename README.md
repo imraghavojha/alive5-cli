@@ -1,6 +1,10 @@
 # Alive5 CLI
 
-Alive5 messages and conversations in your terminal. Open a guided workspace, or run explicit commands from an AI agent or script.
+Alive5 messages and conversations in your terminal. Open a fixed-screen workspace, or run explicit commands from an AI agent or script.
+
+![Alive5 terminal workspace](docs/media/workspace.png)
+
+[Watch the logo entrance](docs/media/logo-motion.gif)
 
 ```sh
 npm install
@@ -9,6 +13,18 @@ alive5
 ```
 
 Requires Node.js 22 or newer. This is a local preview, not a published npm package. `npm link` installs the `alive5` command from this checkout. You can also use `node bin/alive5.js` without linking.
+
+## The terminal workspace
+
+The header stays visible. Menus, forms, transcripts, and lists replace the content panel instead of adding lines to your shell. The full Alive5 logo appears on Home and Appearance; a compact version stays above task screens. Exit restores your previous terminal content.
+
+- Arrow keys or `j`/`k` navigate; Enter opens an item. Keys `1`–`6` select a workspace section.
+- `a` opens Appearance. Choose Signal sweep, Slow glow, or Orbit. Full, Entrance only, and Off control motion. `r` replays the entrance; Space pauses it. Save appearance to keep your choice.
+- Tab moves between form fields. Ctrl+U clears a field. Ctrl+J adds a line break in Message. Pasted multiline text stays in the field and does not submit it.
+- Preview shows the full message and addressing before Enter sends. Esc edits the draft. Overlong text is rejected instead of silently shortened.
+- Lists scroll inside their panel with arrows or Page Up/Down. `n` fetches the next API page when available. `q` quits outside text fields; Ctrl+C exits from anywhere.
+
+The logo uses the official silhouette and orange `#EB5124`, with light lettering for dark terminals. Appearance preferences live in `appearance.json` beside the credential file. The 850 ms entrance runs once. Idle motion is capped near 6 fps; typing pauses animation. `--no-animation` and `NO_COLOR` force motion off. See [design and review notes](docs/design.md).
 
 ## Connect
 
@@ -73,7 +89,7 @@ See [the agent guide](docs/agents.md) for exit codes and send semantics.
 
 The CLI follows the [official Alive5 Postman collection](https://documenter.getpostman.com/view/12135254/UVsQr3zh), reached from [alive5.com/api](https://www.alive5.com/api). It covers account information, channel/user/tag discovery, contacts, SMS send and message history, conversation transcripts, and the documented summary report.
 
-The summary endpoint returned `code: 400` with an empty error object during live verification. `reports summary` exposes that upstream failure with a nonzero exit code. It is marked experimental in the workspace. Some empty conversation ranges return `404 not found` instead of an empty list; the CLI preserves that distinction. Live chat uses zero-based API pages and a last-page index; the CLI converts both to one-based pages. Duplicate transcript records returned by the API are preserved.
+The summary endpoint returned `code: 400` with an empty error object during live verification. `reports summary` exposes that upstream failure with a nonzero exit code. It remains available as a command, outside the default workspace navigation. Some empty conversation ranges return `404 not found` instead of an empty list; the CLI preserves that distinction. Live chat uses zero-based API pages and a last-page index; the CLI converts both to one-based pages. Duplicate transcript records returned by the API are preserved.
 
 API acceptance does not prove handset delivery. Send results therefore include `deliveryConfirmed: false`, even when the API says `sent`. No request is automatically retried. A network failure or server error after sending can mean the message was accepted; inspect Alive5 or the recipient before trying again.
 
@@ -82,9 +98,11 @@ This version leaves out administrative creation, inbound message injection, webh
 ## Development
 
 ```sh
-npm test        # 10 focused tests, offline, no SMS sent
+npm test        # 14 focused tests, offline, no SMS sent
 npm run check  # formatting plus tests
 npm run format
+npm run demo   # offline interactive fixture
+npm run capture # real PTY captures with fake data
 ```
 
 Tests cover command discovery, errors, credentials, multipart sending, input validation, normalization, pagination, and terminal control characters. Live and agent checks are recorded in [verification](docs/verification.md). Design sources and endpoint mapping are in [research](docs/research.md).

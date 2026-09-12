@@ -1,7 +1,6 @@
 import * as p from '@clack/prompts';
 import pc from 'picocolors';
-import { setTimeout as sleep } from 'node:timers/promises';
-import { CliError, config, saveConfig, validateKey, VERSION, DOCS } from './core.js';
+import { CliError, saveConfig, validateKey } from './core.js';
 import * as api from './api.js';
 export const interactive = () =>
   Boolean(
@@ -12,24 +11,14 @@ const c = () =>
   pc.createColors(
     Boolean(process.stdout.isTTY && !('NO_COLOR' in process.env) && process.env.TERM !== 'dumb'),
   );
-export async function banner(animate = true) {
-  const color = c();
-  const logo = [
-    ' ▄▄▄  ▄     ▄ ▄   ▄ ▄▄▄▄▄ ▄▄▄▄▄',
-    '█   █ █     █ █   █ █     █    ',
-    '█▄▄▄█ █     █ █   █ █▄▄▄  ▀▀▀▀▄',
-    '█   █ █     █  █ █  █         █',
-    '█   █ █▄▄▄▄ █   █   █▄▄▄▄ ▀▄▄▄▀',
-  ];
-  process.stdout.write('\n');
-  for (let i = 0; i < logo.length; i++) {
-    console.log('  ' + (i < 2 ? color.cyan(logo[i]) : color.green(logo[i])));
-    if (animate && !process.env.ALIVE5_NO_ANIMATION && !('NO_COLOR' in process.env))
-      await sleep(55);
-  }
-  console.log(
-    `\n  ${color.bold('Conversations, from your terminal.')}  ${color.dim('v' + VERSION)}\n`,
-  );
+export async function banner() {
+  const { Screen } = await import('./tui/screen.js');
+  const { drawLogo, logoHeight } = await import('./tui/logo.js');
+  const width = process.stdout.columns >= 70 ? 48 : 28;
+  const screen = new Screen(width + 4, logoHeight(width) + 2);
+  drawLogo(screen, { x: 2, y: 1, width, motion: 'off' });
+  const depth = 'NO_COLOR' in process.env ? 0 : process.env.COLORTERM === 'truecolor' ? 24 : 8;
+  process.stdout.write(screen.rows(depth).join('\n') + '\n\n');
 }
 export function render(data, meta = {}) {
   const color = c();
@@ -157,136 +146,7 @@ export async function login(options = {}) {
   }
   return data;
 }
-const ask = async (message, initialValue) =>
-  unwrapPrompt(
-    await p.text({
-      message,
-      initialValue,
-      validate: (v) => (!v?.trim() ? 'This field is required.' : undefined),
-    }),
-  );
 export async function dashboard() {
-  await banner();
-  const stored = process.env.ALIVE5_API_KEY ? {} : await config();
-  if (!process.env.ALIVE5_API_KEY && !stored.apiKey) {
-    p.note(
-      `Find your key in Alive5 → Integrations → API Key.\nIt stays on this computer in a file readable only by your user.`,
-      'Connect your workspace',
-    );
-    await login();
-  }
-  let info;
-  try {
-    info = await api.account();
-  } catch (e) {
-    if (process.env.ALIVE5_API_KEY || !['AUTH_FAILED', 'AUTH_REQUIRED'].includes(e.code)) throw e;
-    p.log.error(safe(e.message));
-    await login();
-    info = await api.account();
-  }
-  p.intro(`${c().green('●')} ${safe(info.org_name)}  ${c().dim('PUBLIC API')}`);
-  for (;;) {
-    const action = unwrapPrompt(
-      await p.select({
-        message: 'What would you like to do?',
-        options: [
-          { value: 'send', label: 'Send a text', hint: 'compose → preview → send' },
-          { value: 'messages', label: 'Read recent texts', hint: 'messages across all threads' },
-          { value: 'history', label: 'Read conversations', hint: 'SMS, live chat, Facebook' },
-          {
-            value: 'directory',
-            label: 'Browse your workspace',
-            hint: 'channels, people, contacts, tags',
-          },
-          { value: 'summary', label: 'Conversation summary', hint: 'experimental API endpoint' },
-          { value: 'agents', label: 'Use with an AI agent', hint: 'commands and JSON output' },
-          { value: 'exit', label: 'Exit' },
-        ],
-      }),
-    );
-    if (action === 'exit') {
-      p.outro('See you in the next conversation.');
-      return;
-    }
-    try {
-      if (action === 'agents') {
-        p.note(
-          'alive5 schema\nalive5 channels list --json\nalive5 contacts list --limit 10 --json\nalive5 sms send --help\n\nPiped commands return JSON and never prompt.\nUse --dry-run to preview a text, then --yes to send.\nFull guide: docs/agents.md\nAPI: ' +
-            DOCS,
-          'Agent quick start',
-        );
-        continue;
-      }
-      if (action === 'directory') {
-        const type = unwrapPrompt(
-          await p.select({
-            message: 'Browse',
-            options: [
-              { value: 'channels', label: 'Channels and users' },
-              { value: 'contacts', label: 'Contacts' },
-              { value: 'tags', label: 'Tags' },
-            ],
-          }),
-        );
-        const result = await api[type]({});
-        render(type === 'contacts' ? result.data : result, result.meta);
-        continue;
-      }
-      if (action === 'send') {
-        const channels = await api.channels();
-        const channelId = unwrapPrompt(
-          await p.select({
-            message: 'Send from which channel?',
-            options: channels.map((ch) => ({ value: ch.id, label: safe(ch.name) })),
-          }),
-        );
-        const ch = channels.find((x) => x.id === channelId);
-        const user = unwrapPrompt(
-          await p.select({
-            message: 'Attribute this message to',
-            options: ch.users.map((u) => ({ value: u.id, label: safe(u.name || u.id) })),
-          }),
-        );
-        const from = await ask(
-          'Your Alive5 sending number',
-          /^\+\d+$/.test(ch.name) ? ch.name : undefined,
-        );
-        const to = await ask('Recipient · include country code');
-        const message = await ask('Message');
-        const options = { from, to, message, channel: channelId, user };
-        render(await api.send({ ...options, dryRun: true }));
-        const yes = unwrapPrompt(
-          await p.confirm({ message: `Send this text to ${safe(to)}?`, initialValue: false }),
-        );
-        if (yes) render(await api.send(options));
-        else p.log.info('Nothing sent.');
-        continue;
-      }
-      const today = new Date().toISOString().slice(0, 10);
-      const since = await ask('Start date · YYYY-MM-DD', today);
-      const until = await ask(
-        'Until · YYYY-MM-DD, next day to include today',
-        new Date(Date.now() + 86400000).toISOString().slice(0, 10),
-      );
-      if (action === 'messages') render(await api.messages({ since, until }));
-      else if (action === 'summary') render(await api.summary({ since, until }));
-      else {
-        const type = unwrapPrompt(
-          await p.select({
-            message: 'Conversation type',
-            options: [
-              { value: 'sms', label: 'SMS' },
-              { value: 'livechat', label: 'Live chat' },
-              { value: 'fbm', label: 'Facebook Messenger' },
-            ],
-          }),
-        );
-        const r = await api.conversations(type, { since, until });
-        render(r.data, r.meta);
-      }
-    } catch (e) {
-      if (e.exitCode === 130) throw e;
-      p.log.error(safe(e.message));
-    }
-  }
+  const { launchTui } = await import('./tui/app.js');
+  await launchTui();
 }

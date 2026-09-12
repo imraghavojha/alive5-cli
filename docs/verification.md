@@ -36,3 +36,9 @@ OpenCode with `opencode/glm-5.3` could not start because the configured OpenCode
 A second pass used the available `opencode/mimo-v2.5-free` model with an empty CLI credential directory. It executed help and schema discovery, a dry-run SMS, a send without confirmation, an invalid date, and an unknown flag. It reported all six checks passing and no defects. All activity was offline and limited to the CLI commands. Its review incorrectly described `--no-input` as required; it is optional because piped output already disables prompts. `--yes` is the flag required for noninteractive sending.
 
 Agent logs stay in the gitignored `.local` directory. They are not part of the package. The GLM-specific check remains blocked by the existing provider account's billing state.
+
+## Version 0.2 redesign
+
+The suite now contains 14 focused tests. All pass on Node 22.18.0 and Node 26.0.0. Four additional interaction tests cover the guided composer and explicit send confirmation, overlong messages, bounded layouts and internal scrolling, appearance controls, real PTY navigation, multiline paste, and restoration of the shell. Existing API and JSON-contract tests still pass.
+
+The visual review and independent weaker-model terminal check are recorded in [design notes](design.md). The redesign uses fake data for captures and review. It did not send another real SMS. Version 0.1's delivery verification above remains the last live send check.
