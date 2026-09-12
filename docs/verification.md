@@ -1,0 +1,38 @@
+# Verification
+
+September 12, 2026. Tests used the local Node 22 installation and the existing Alive5 account selected in Chrome.
+
+## Automated checks
+
+Ten focused Node tests pass. They cover:
+
+- Agent discovery, parse errors, and clean JSON without ANSI output.
+- Date and phone validation.
+- Nested API failures and credential redaction.
+- Multipart sending, exactly one request, and uncertain delivery after a timeout.
+- Offline previews and explicit send intent.
+- Contact pagination and the published query names.
+- SMS/live-chat normalization, live-chat page conversion, and HTTPS SMS history.
+- Rate limits, malformed replies, and host restrictions.
+- Private credential-file permissions, replacement, and logout.
+- Terminal control-character stripping.
+
+`npm run check` also checks formatting. `npm pack --dry-run` checks the distributable file list. No test reads production credentials or sends SMS.
+
+## Live checks
+
+Account authentication, channels/users, tags, contact pagination, SMS transcript history, live-chat transcripts, SMS sending, and recent SMS message history were exercised against the public API.
+
+One real text with marker `A5-0912` was sent to the user's authorized number ending in **9057**. Alive5 returned `sent`. Google Messages independently showed the incoming text from the Alive5 number at **5:35 PM America/Chicago**. The public 1.2 SMS history endpoint returned that same marker at **2026-09-12T22:35:33.490Z**. No additional live text was sent for the agent check.
+
+The documented summary report returned an upstream empty error object. An empty Facebook conversation range returned `404 not found`; successful Facebook transcript data was not available to verify. Those paths remain explicit failures rather than invented empty results.
+
+The terminal launch, first-run login prompt, masked input, keyboard menu, cancellation, and clean exit were checked through a pseudo-terminal. The computer-use tool refused access to the installed terminal app, so native-window screenshot QA was not available.
+
+## External agent check
+
+OpenCode with `opencode/glm-5.3` could not start because the configured OpenCode account returned `No payment method`. No billing settings were changed.
+
+A second pass used the available `opencode/mimo-v2.5-free` model with an empty CLI credential directory. It executed help and schema discovery, a dry-run SMS, a send without confirmation, an invalid date, and an unknown flag. It reported all six checks passing and no defects. All activity was offline and limited to the CLI commands. Its review incorrectly described `--no-input` as required; it is optional because piped output already disables prompts. `--yes` is the flag required for noninteractive sending.
+
+Agent logs stay in the gitignored `.local` directory. They are not part of the package. The GLM-specific check remains blocked by the existing provider account's billing state.
