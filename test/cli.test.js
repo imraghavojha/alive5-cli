@@ -255,3 +255,48 @@ test('credentials are private, replace atomically, and logout removes only saved
 test('terminal content cannot inject escape sequences', () => {
   assert.equal(safe('hello\x1b[2J\nworld').includes('\x1b'), false);
 });
+
+test('agents discover, preview, save, and read appearance without credentials or ANSI', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'alive5-agent-appearance-'));
+  const command = (...args) =>
+    spawnSync(process.execPath, ['bin/alive5.js', ...args], {
+      encoding: 'utf8',
+      env: { ...process.env, ALIVE5_CONFIG_DIR: dir, ALIVE5_API_KEY: '' },
+    });
+  try {
+    const schema = JSON.parse(command('schema', 'appearance', 'set').stdout);
+    assert.ok(
+      schema.data.commands.options
+        .find((o) => o.flag === '--effect <value>')
+        .choices.includes('cosmos'),
+    );
+    const saved = command(
+      'appearance',
+      'set',
+      '--logo',
+      'frame',
+      '--effect',
+      'cosmos',
+      '--motion',
+      'full',
+    );
+    assert.equal(saved.status, 0);
+    assert.equal(saved.stdout.includes('\x1b'), false);
+    assert.deepEqual(JSON.parse(saved.stdout).data, {
+      logo: 'frame',
+      effect: 'cosmos',
+      motion: 'full',
+      saved: true,
+    });
+    const preview = command('appearance', 'set', '--motion', 'off', '--dry-run');
+    assert.equal(JSON.parse(preview.stdout).data.saved, false);
+    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.motion, 'full');
+    const before = await readFile(join(dir, 'appearance.json'), 'utf8');
+    assert.equal(command('appearance', 'set', '--effect', 'invalid').status, 2);
+    assert.equal(command('appearance', 'set').status, 2);
+    assert.equal(await readFile(join(dir, 'appearance.json'), 'utf8'), before);
+    assert.equal((await stat(join(dir, 'appearance.json'))).mode & 0o777, 0o600);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

@@ -48,3 +48,7 @@ The visual review and independent weaker-model terminal check are recorded in [d
 All 16 focused tests pass on Node 22.18.0 and Node 26.0.0. `npm run check` and the package dry-run pass. The two new tests cover all eight logo previews, saved preferences, migration from V2, continuous effects, and static task screens. The existing real PTY test continues to exercise compose, multiline paste, review, editing, resizing, and terminal restoration.
 
 V3 was tested offline with fake contacts and numbers. No live SMS was sent. Three Claude Opus capture reviews and an independent GPT-5.6 Luna command/PTY check are documented in [V3 design notes](design-v3.md), along with performance samples and the inconclusive OpenCode attempt.
+
+## Version 0.4
+
+All 18 tests pass, including the new agent-facing appearance commands and bounded Cosmos effects. Appearance configuration works without an API key and preserves JSON output and exit codes. The independent command/PTY review passed. Details, render measurements, and visual review notes are in [Cosmos notes](cosmos.md). This release was verified offline and sent no live SMS.

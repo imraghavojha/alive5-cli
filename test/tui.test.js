@@ -98,7 +98,7 @@ test('appearance controls select logos and stop motion', async () => {
     await app.handleKey('a', {});
     assert.equal(app.state.panel.kind, 'appearance');
     await press(app, 'right');
-    assert.equal(app.state.logo, 'pixel');
+    assert.equal(app.state.logo, 'type');
     await press(app, 'down');
     await press(app, 'right');
     assert.equal(app.state.motion, 'subtle');
@@ -199,7 +199,7 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
       JSON.stringify({ motion: 'off', effect: 'breathe' }),
     );
     const migrated = await appearance();
-    assert.equal(migrated.logo, 'outline');
+    assert.equal(migrated.logo, 'frame');
     const app = new Workspace({ account: { org_name: 'Example' }, settings: migrated });
     await app.handleKey('a');
     const previews = new Set();
@@ -235,7 +235,7 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
     const restarted = new Workspace({ settings: saved });
     assert.ok(restarted.frame(80, 24).plain().includes('│   Alive 5   │'));
     await writeFile(join(dir, 'appearance.json'), '{broken');
-    assert.equal((await appearance()).logo, 'outline');
+    assert.equal((await appearance()).logo, 'frame');
   } finally {
     if (previous === undefined) delete process.env.ALIVE5_CONFIG_DIR;
     else process.env.ALIVE5_CONFIG_DIR = previous;
@@ -256,4 +256,27 @@ test('continuous effects persist, stay inside the banner, and stop on task scree
   app.compose({ from: '+15555550100', to: '+15555550101' });
   const c = app.frame(80, 24, app.replayAt + 8000).rows(24);
   assert.deepEqual(c, app.frame(80, 24, app.replayAt + 12000).rows(24));
+});
+
+test('Cosmos preserves the label and content while comets and the moon move', () => {
+  for (const width of [40, 80, 110]) {
+    const app = new Workspace({
+      account: { org_name: 'Example' },
+      settings: { logo: 'frame', motion: 'full', effect: 'cosmos' },
+    });
+    const snapshots = [2000, 6500, 13000].map((elapsed) => {
+      const screen = app.frame(width, 24, app.replayAt + elapsed);
+      assert.ok(screen.plain().includes('│   Alive 5   │'));
+      assert.ok(screen.plain().includes(' /(___)/'));
+      return screen.rows(24);
+    });
+    assert.deepEqual(snapshots[0].slice(8), snapshots[1].slice(8));
+    if (!app.motionLocked) assert.notDeepEqual(snapshots[0].slice(3, 8), snapshots[1].slice(3, 8));
+    app.state.motion = 'off';
+    app.changed();
+    assert.deepEqual(
+      app.frame(width, 24, app.replayAt + 14000).rows(24),
+      app.frame(width, 24, app.replayAt + 18000).rows(24),
+    );
+  }
 });

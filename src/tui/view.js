@@ -48,7 +48,7 @@ export function layout(width, height, task = false, homeLogo = null) {
   const bottom = height - 3;
   return {
     compact: width < 65,
-    logoWidth: Math.min(52, w),
+    logoWidth: w,
     logoHeight: header - 3,
     header,
     left,
@@ -236,7 +236,9 @@ export function view(state, width, height, time = 0) {
       ],
       [
         'Effect',
-        { signal: 'Light sweep', breathe: 'Slow glow', orbit: 'Star drift' }[state.effect],
+        { signal: 'Light sweep', breathe: 'Slow glow', orbit: 'Star drift', cosmos: 'Cosmos' }[
+          state.effect
+        ],
       ],
       ['Replay', ''],
       ['Save appearance', ''],

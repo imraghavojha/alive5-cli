@@ -2,6 +2,7 @@ import { Command, Option, CommanderError } from 'commander';
 import { readFile } from 'node:fs/promises';
 import * as p from '@clack/prompts';
 import * as api from './api.js';
+import { appearance, saveAppearance, appearanceChoices } from './appearance.js';
 import {
   VERSION,
   DOCS,
@@ -69,7 +70,7 @@ export async function main(argv = process.argv) {
     .exitOverride()
     .configureOutput({ writeErr: () => {}, outputError: () => {} });
   program.hook('preAction', (_, action) => {
-    if (program.opts().fields && ['send', 'login', 'logout'].includes(action.name()))
+    if (program.opts().fields && ['send', 'login', 'logout', 'set'].includes(action.name()))
       throw new CliError('INVALID_ARGUMENT', '--fields is available on read commands only.', 2);
     if (program.opts().color === false) process.env.NO_COLOR = '1';
     if (program.opts().animation === false) process.env.ALIVE5_NO_ANIMATION = '1';
@@ -252,6 +253,43 @@ export async function main(argv = process.argv) {
       }
       write(await api.send(options));
     });
+  const style = program
+    .command('appearance')
+    .description('Read or save local appearance settings; no authentication needed');
+  style
+    .command('get')
+    .description('Read saved logo, motion, and effect settings')
+    .action(async () => write(await appearance()));
+  const setStyle = style
+    .command('set')
+    .description('Save local appearance settings without prompts');
+  for (const [key, choices] of Object.entries(appearanceChoices))
+    setStyle.addOption(
+      new Option(
+        `--${key} <value>`,
+        key === 'logo'
+          ? 'set logo; frame is Label, variation 8'
+          : key === 'motion'
+            ? 'set motion; full is continuous, subtle is entrance only'
+            : 'set animation effect',
+      ).choices(choices),
+    );
+  setStyle.option('--dry-run', 'preview settings without saving').action(async (options) => {
+    const changes = Object.fromEntries(
+      Object.keys(appearanceChoices)
+        .filter((key) => options[key] !== undefined)
+        .map((key) => [key, options[key]]),
+    );
+    if (!Object.keys(changes).length)
+      throw new CliError(
+        'INVALID_ARGUMENT',
+        'Specify --logo, --motion, or --effect. Run alive5 appearance set --help.',
+        2,
+      );
+    const settings = { ...(await appearance()), ...changes };
+    if (!options.dryRun) await saveAppearance(settings);
+    write({ ...settings, saved: !options.dryRun });
+  });
   function describe(cmd) {
     return {
       name: cmd.name(),

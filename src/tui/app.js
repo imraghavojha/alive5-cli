@@ -1,38 +1,14 @@
 import { emitKeypressEvents } from 'node:readline';
 import { PassThrough } from 'node:stream';
-import { readFile, writeFile, mkdir, rename, rm } from 'node:fs/promises';
-import { join } from 'node:path';
-import { randomUUID } from 'node:crypto';
 import * as api from '../api.js';
-import { config, configDir, validateKey, saveConfig, CliError, dateRange } from '../core.js';
+import { config, validateKey, saveConfig, CliError, dateRange } from '../core.js';
 import { Terminal, wrap, sanitize, graphemes, theme } from './screen.js';
 import { drawLogo, logos } from './logo.js';
 import { view, navigation, layout } from './view.js';
 
-const defaults = { motion: 'full', effect: 'orbit', logo: 'outline' };
-export async function appearance() {
-  try {
-    const v = JSON.parse(await readFile(join(configDir(), 'appearance.json'), 'utf8'));
-    return {
-      logo: logos.some((logo) => logo.id === v.logo) ? v.logo : defaults.logo,
-      motion: ['full', 'subtle', 'off'].includes(v.motion) ? v.motion : 'full',
-      effect: ['signal', 'breathe', 'orbit'].includes(v.effect) ? v.effect : defaults.effect,
-    };
-  } catch {
-    return { ...defaults };
-  }
-}
-async function saveAppearance(settings) {
-  const dir = configDir();
-  await mkdir(dir, { recursive: true, mode: 0o700 });
-  const temp = join(dir, `.appearance-${randomUUID()}`);
-  try {
-    await writeFile(temp, JSON.stringify(settings) + '\n', { mode: 0o600, flag: 'wx' });
-    await rename(temp, join(dir, 'appearance.json'));
-  } finally {
-    await rm(temp, { force: true });
-  }
-}
+import { appearance, saveAppearance, defaults, appearanceChoices } from '../appearance.js';
+export { appearance } from '../appearance.js';
+
 export function recordLines(data) {
   if (!Array.isArray(data))
     return Object.entries(data || {}).map(
@@ -380,8 +356,9 @@ export class Workspace {
       this.replay();
     }
     if (p.index === 2) {
-      const options = ['signal', 'breathe', 'orbit'];
-      this.state.effect = options[(options.indexOf(this.state.effect) + direction + 3) % 3];
+      const options = appearanceChoices.effect;
+      this.state.effect =
+        options[(options.indexOf(this.state.effect) + direction + options.length) % options.length];
       this.replay();
     }
     if (p.index === 3) this.replay();

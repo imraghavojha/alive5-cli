@@ -24,9 +24,20 @@ The header stays visible. Menus, forms, transcripts, and lists replace the conte
 - Preview shows the full message and addressing before Enter sends. Esc edits the draft. Overlong text is rejected instead of silently shortened.
 - Lists scroll inside their panel with arrows or Page Up/Down. `n` fetches the next API page when available. `q` quits outside text fields; Ctrl+C exits from anywhere.
 
-The eight wordmarks all spell Alive 5, using the brand orange `#EB5124` for the 5. Outline is the initial choice. Light sweep, Slow glow, and Star drift work with every logo. Continuous mode keeps the preview moving; Entrance only runs the effect for 850 ms; Off draws a static logo. The lettering stays visible throughout. Animation is capped near 6 fps after startup and stops on task screens.
+The eight wordmarks all spell Alive 5, using the brand orange `#EB5124` for the 5. Label, variation 8, is the initial choice. Cosmos adds continuous stars, occasional comets, a ringed planet, and an orbiting moon. Light sweep, Slow glow, and Star drift are also available. Continuous mode keeps the preview moving; Entrance only runs the effect for 850 ms; Off draws a static logo. The lettering stays visible throughout. Animation is capped near 6 fps after startup and stops on task screens.
 
-Appearance preferences live in `appearance.json` beside the credential file. `--no-animation`, `ALIVE5_NO_ANIMATION=1`, and `NO_COLOR` force motion off. The minimum interactive size is 40×24; 80×24 gives more room for hints and descriptions. Wider wordmarks fall back to plain Alive 5 if a command banner cannot fit them. See [V3 design and research](docs/design-v3.md).
+Agents can configure appearance without opening the terminal UI or authenticating:
+
+```sh
+alive5 schema appearance set
+alive5 appearance get --json
+alive5 appearance set --logo frame --motion full --effect cosmos --json
+alive5 appearance set --motion off --dry-run --json
+```
+
+`frame` is Label, variation 8. Changes are local and take effect in the next interactive session. Unspecified settings are preserved; `--dry-run` previews without saving.
+
+Appearance preferences live in `appearance.json` beside the credential file. `--no-animation`, `ALIVE5_NO_ANIMATION=1`, and `NO_COLOR` force motion off. The minimum interactive size is 40×24; 80×24 gives more room for hints and descriptions. Wider wordmarks fall back to plain Alive 5 if a command banner cannot fit them. See [V3 design and research](docs/design-v3.md) and [Cosmos implementation notes](docs/cosmos.md).
 
 ## Connect
 
@@ -100,7 +111,7 @@ This version leaves out administrative creation, inbound message injection, webh
 ## Development
 
 ```sh
-npm test        # 16 focused tests, offline, no SMS sent
+npm test        # 18 focused tests, offline, no SMS sent
 npm run check  # formatting plus tests
 npm run format
 npm run demo   # offline interactive fixture
