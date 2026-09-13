@@ -3,13 +3,13 @@ import stringWidth from 'string-width';
 export const theme = {
   bg: '#111011',
   panel: '#191718',
-  ink: '#ede6da',
+  ink: '#e4e4e7',
   muted: '#a09a95',
   faint: '#837d80',
   line: '#363237',
   orange: '#eb5124',
   hot: '#ff936b',
-  selected: '#2c1d1a',
+  selected: '#242426',
   gray: '#48484a',
 };
 export const sanitize = (value) =>

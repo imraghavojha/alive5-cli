@@ -10,7 +10,7 @@ const contacts = Array.from({ length: 30 }, (_, i) => ({
 }));
 await launchTui({
   account: { org_name: 'Studio workspace' },
-  settings: { motion: 'full', effect: 'signal' },
+  settings: { motion: process.env.DEMO_MOTION || 'full', effect: 'orbit', logo: 'outline' },
   services: {
     account: async () => ({ org_name: 'Studio workspace' }),
     channels: async () => [

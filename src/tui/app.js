@@ -5,17 +5,18 @@ import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import * as api from '../api.js';
 import { config, configDir, validateKey, saveConfig, CliError, dateRange } from '../core.js';
-import { Terminal, wrap, sanitize, graphemes } from './screen.js';
-import { drawLogo, logoHeight } from './logo.js';
+import { Terminal, wrap, sanitize, graphemes, theme } from './screen.js';
+import { drawLogo, logos } from './logo.js';
 import { view, navigation, layout } from './view.js';
 
-const defaults = { motion: 'full', effect: 'signal' };
+const defaults = { motion: 'full', effect: 'orbit', logo: 'outline' };
 export async function appearance() {
   try {
     const v = JSON.parse(await readFile(join(configDir(), 'appearance.json'), 'utf8'));
     return {
+      logo: logos.some((logo) => logo.id === v.logo) ? v.logo : defaults.logo,
       motion: ['full', 'subtle', 'off'].includes(v.motion) ? v.motion : 'full',
-      effect: ['signal', 'breathe', 'orbit'].includes(v.effect) ? v.effect : 'signal',
+      effect: ['signal', 'breathe', 'orbit'].includes(v.effect) ? v.effect : defaults.effect,
     };
   } catch {
     return { ...defaults };
@@ -94,6 +95,7 @@ export class Workspace {
       error: '',
       notice: '',
       busy: '',
+      ...defaults,
       ...settings,
       entrance: 0,
     };
@@ -341,13 +343,13 @@ export class Workspace {
     this.form(
       'Compose a text',
       [
-        { key: 'from', label: 'From · your Alive5 number', placeholder: '+15555550100' },
-        { key: 'to', label: 'To · include country code', placeholder: '+1…' },
+        { key: 'from', label: 'From · your Alive 5 number', placeholder: '+15555550100' },
+        { key: 'to', label: 'To · include country code', placeholder: '+15555550101' },
         {
           key: 'message',
           label: 'Message',
           multiline: true,
-          placeholder: 'Say something worth replying to.',
+          placeholder: 'Write your message',
         },
       ],
       async (v, current) => {
@@ -355,7 +357,7 @@ export class Workspace {
         this.services.sendForm ? this.services.sendForm(form) : api.sendForm(form);
         if (current()) this.state.panel = { kind: 'preview', form, scroll: 0 };
       },
-      'Nothing sends until you review and confirm.',
+      'Review before sending.',
       initial,
     );
   }
@@ -363,21 +365,33 @@ export class Workspace {
     const p = this.state.panel;
     if (p.kind !== 'appearance') return;
     if (p.index === 0) {
+      const index = logos.findIndex((logo) => logo.id === this.state.logo);
+      this.state.logo = logos[(index + direction + logos.length) % logos.length].id;
+      this.replay();
+    }
+    if (p.index === 1) {
       if (this.motionLocked) {
-        this.state.notice = 'Motion is disabled by NO_COLOR or ALIVE5_NO_ANIMATION.';
+        this.state.notice = 'Motion disabled by environment or command flags.';
+        this.changed();
         return;
       }
       const options = ['full', 'subtle', 'off'];
       this.state.motion = options[(options.indexOf(this.state.motion) + direction + 3) % 3];
+      this.replay();
     }
-    if (p.index === 1) {
+    if (p.index === 2) {
       const options = ['signal', 'breathe', 'orbit'];
       this.state.effect = options[(options.indexOf(this.state.effect) + direction + 3) % 3];
+      this.replay();
     }
-    if (p.index === 2) this.replay();
-    if (p.index === 3)
+    if (p.index === 3) this.replay();
+    if (p.index === 4)
       await this.run('Saving appearance', async () => {
-        await saveAppearance({ motion: this.state.motion, effect: this.state.effect });
+        await saveAppearance({
+          motion: this.state.motion,
+          effect: this.state.effect,
+          logo: this.state.logo,
+        });
         this.state.notice = 'Appearance saved.';
       });
     this.changed();
@@ -505,10 +519,21 @@ export class Workspace {
       return;
     }
     if (p.kind === 'appearance') {
-      if (key.name === 'down' || str === 'j') p.index = (p.index + 1) % 4;
-      if (key.name === 'up' || str === 'k') p.index = (p.index + 3) % 4;
-      if (key.name === 'right' || key.name === 'return') await this.cycleAppearance(1);
-      if (key.name === 'left') await this.cycleAppearance(-1);
+      if (str === 's') {
+        const previousIndex = p.index;
+        p.index = 4;
+        await this.cycleAppearance();
+        p.index = previousIndex;
+      }
+      if (/^[1-8]$/.test(str || '')) {
+        this.state.logo = logos[Number(str) - 1].id;
+        this.replay();
+      }
+      if (key.name === 'down' || str === 'j') p.index = (p.index + 1) % 5;
+      if (key.name === 'up' || str === 'k') p.index = (p.index + 4) % 5;
+      if (key.name === 'return' || (key.name === 'right' && p.index < 3))
+        await this.cycleAppearance(1);
+      if (key.name === 'left' && p.index < 3) await this.cycleAppearance(-1);
       this.changed();
       return;
     }
@@ -543,14 +568,21 @@ export class Workspace {
       this.cacheKey = cacheKey;
     }
     const screen = this.cachedScreen,
-      l = layout(width, height, !['home', 'appearance'].includes(this.state.panel.kind));
-    if (width >= 40 && height >= 24) {
-      screen.fill(3, 1, l.logoWidth, logoHeight(l.logoWidth), '#111011');
+      l = layout(
+        width,
+        height,
+        !['home', 'appearance'].includes(this.state.panel.kind),
+        this.state.panel.kind === 'home' ? this.state.logo : null,
+      );
+    if (width >= 40 && height >= 24 && ['home', 'appearance'].includes(this.state.panel.kind)) {
+      screen.fill(3, 3, l.logoWidth, l.logoHeight, theme.bg);
       drawLogo(screen, {
         x: 3,
-        y: 1,
+        y: 3,
+        variant: this.state.logo,
         width: l.logoWidth,
-        time: (now - this.started) / 1000,
+        height: l.logoHeight,
+        time: Math.max(0, now - this.replayAt) / 1000,
         entrance: this.state.panel.kind === 'form' ? 1 : this.state.entrance,
         motion: this.state.panel.kind === 'form' ? 'off' : this.state.motion,
         effect: this.state.effect,
@@ -674,7 +706,7 @@ export async function launchTui(options = {}) {
   // One capped scheduler; static screens perform no render or output work.
   let lastAnimation = 0;
   timer = setInterval(() => {
-    if (finished || workspace.state.panel.kind === 'form') return;
+    if (finished || !['home', 'appearance'].includes(workspace.state.panel.kind)) return;
     const now = performance.now();
     if (now - workspace.replayAt >= 900 && now - lastAnimation < 160) return;
     lastAnimation = now;

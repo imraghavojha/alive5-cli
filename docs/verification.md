@@ -42,3 +42,9 @@ Agent logs stay in the gitignored `.local` directory. They are not part of the p
 The suite now contains 14 focused tests. All pass on Node 22.18.0 and Node 26.0.0. Four additional interaction tests cover the guided composer and explicit send confirmation, overlong messages, bounded layouts and internal scrolling, appearance controls, real PTY navigation, multiline paste, and restoration of the shell. Existing API and JSON-contract tests still pass.
 
 The visual review and independent weaker-model terminal check are recorded in [design notes](design.md). The redesign uses fake data for captures and review. It did not send another real SMS. Version 0.1's delivery verification above remains the last live send check.
+
+## Version 0.3
+
+All 16 focused tests pass on Node 22.18.0 and Node 26.0.0. `npm run check` and the package dry-run pass. The two new tests cover all eight logo previews, saved preferences, migration from V2, continuous effects, and static task screens. The existing real PTY test continues to exercise compose, multiline paste, review, editing, resizing, and terminal restoration.
+
+V3 was tested offline with fake contacts and numbers. No live SMS was sent. Three Claude Opus capture reviews and an independent GPT-5.6 Luna command/PTY check are documented in [V3 design notes](design-v3.md), along with performance samples and the inconclusive OpenCode attempt.

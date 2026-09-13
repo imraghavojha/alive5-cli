@@ -103,9 +103,9 @@ export async function capture(name) {
 }
 if (process.env.CAPTURE_ANIMATION) {
   for (let i = 0; i < 100 && bytes === 0; i++) await sleep(20);
-  for (let i = 0; i < 28; i++) {
+  for (let i = 0; i < Number(process.env.CAPTURE_FRAMES || 28); i++) {
     await capture(`frame-${String(i).padStart(3, '0')}`);
-    await sleep(65);
+    await sleep(Number(process.env.CAPTURE_INTERVAL || 65));
   }
 }
 await sleep(2000);
@@ -123,6 +123,13 @@ await capture('01-home');
 pty.write('a');
 await sleep(200);
 await capture('02-appearance');
+if (process.env.CAPTURE_LOGOS) {
+  for (let i = 1; i <= 8; i++) {
+    pty.write(String(i));
+    await sleep(220);
+    await capture(`logo-${i}`);
+  }
+}
 pty.write('\x1b');
 await sleep(150);
 pty.write('1\r');

@@ -3,7 +3,10 @@ import assert from 'node:assert/strict';
 import { setTimeout as sleep } from 'node:timers/promises';
 import { spawn } from 'node-pty';
 import headless from '@xterm/headless';
-import { Workspace } from '../src/tui/app.js';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+import { Workspace, appearance } from '../src/tui/app.js';
 import { theme, Screen } from '../src/tui/screen.js';
 import { sendForm } from '../src/api.js';
 import { preparePty } from '../scripts/pty-helper.mjs';
@@ -85,7 +88,7 @@ test('fixed screen remains bounded on resize and supports internal scrolling', a
   assert.equal(s.cells[1][0].ch, ' ');
 });
 
-test('appearance controls preserve the official orange and motion can stop', async () => {
+test('appearance controls select logos and stop motion', async () => {
   const old = process.env.NO_COLOR,
     oldAnimation = process.env.ALIVE5_NO_ANIMATION;
   delete process.env.NO_COLOR;
@@ -94,6 +97,9 @@ test('appearance controls preserve the official orange and motion can stop', asy
     const app = new Workspace({ account: { org_name: 'test' } });
     await app.handleKey('a', {});
     assert.equal(app.state.panel.kind, 'appearance');
+    await press(app, 'right');
+    assert.equal(app.state.logo, 'pixel');
+    await press(app, 'down');
     await press(app, 'right');
     assert.equal(app.state.motion, 'subtle');
     await app.handleKey(' ', {});
@@ -148,9 +154,9 @@ test('PTY restores the shell, handles Escape and multiline paste without submitt
     await until('Compose a text');
     assert.equal(term.buffer.active.type, 'alternate');
     p.write('a');
-    await until('Motion studio');
+    await until('Save appearance');
     p.write('\x1b');
-    await until('Set the mood.');
+    await until('Compose a text');
     p.write('1\r');
     await until('Choose a sending channel');
     p.write('\r');
@@ -181,4 +187,73 @@ test('PTY restores the shell, handles Escape and multiline paste without submitt
     p.kill();
     term.dispose();
   }
+});
+
+test('eight logo previews are distinct, persist on save, and migrate old preferences', async () => {
+  const previous = process.env.ALIVE5_CONFIG_DIR;
+  const dir = await mkdtemp(join(tmpdir(), 'alive5-appearance-'));
+  process.env.ALIVE5_CONFIG_DIR = dir;
+  try {
+    await writeFile(
+      join(dir, 'appearance.json'),
+      JSON.stringify({ motion: 'off', effect: 'breathe' }),
+    );
+    const migrated = await appearance();
+    assert.equal(migrated.logo, 'outline');
+    const app = new Workspace({ account: { org_name: 'Example' }, settings: migrated });
+    await app.handleKey('a');
+    const previews = new Set();
+    for (let i = 1; i <= 8; i++) {
+      await app.handleKey(String(i));
+      const screen = app.frame(80, 24);
+      assert.ok(screen.plain().includes(`${i}/8`));
+      assert.ok(
+        screen.cells
+          .slice(3, 10)
+          .flat()
+          .some((cell) => cell.ch.trim() && cell.fg === theme.orange),
+        `Logo ${i} keeps the orange 5`,
+      );
+      previews.add(screen.plain().split('\n').slice(3, 10).join('\n'));
+      for (const width of [40, 64, 80, 110]) {
+        const text = app.frame(width, 24).plain();
+        assert.ok(text.includes('Save appearance'));
+        assert.ok(text.includes('Esc back'));
+        assert.ok(text.includes('←→ change'));
+      }
+    }
+    assert.equal(previews.size, 8);
+    await app.handleKey('s');
+    assert.equal(app.state.notice, 'Appearance saved.');
+    assert.equal(app.state.panel.index, 0);
+    for (let i = 0; i < 4; i++) await press(app, 'down');
+    await press(app, 'return');
+    assert.equal(app.state.notice, 'Appearance saved.');
+    const saved = await appearance();
+    assert.deepEqual(saved, { logo: 'frame', motion: 'off', effect: 'breathe' });
+    assert.equal(JSON.parse(await readFile(join(dir, 'appearance.json'))).logo, 'frame');
+    const restarted = new Workspace({ settings: saved });
+    assert.ok(restarted.frame(80, 24).plain().includes('│   Alive 5   │'));
+    await writeFile(join(dir, 'appearance.json'), '{broken');
+    assert.equal((await appearance()).logo, 'outline');
+  } finally {
+    if (previous === undefined) delete process.env.ALIVE5_CONFIG_DIR;
+    else process.env.ALIVE5_CONFIG_DIR = previous;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('continuous effects persist, stay inside the banner, and stop on task screens', async () => {
+  const app = new Workspace({
+    account: { org_name: 'Example' },
+    settings: { motion: 'full', logo: 'slash', effect: 'orbit' },
+  });
+  if (app.motionLocked) return;
+  const a = app.frame(80, 24, app.replayAt + 4000).rows(24);
+  const b = app.frame(80, 24, app.replayAt + 6500).rows(24);
+  assert.notDeepEqual(a.slice(3, 10), b.slice(3, 10));
+  assert.deepEqual(a.slice(10), b.slice(10));
+  app.compose({ from: '+15555550100', to: '+15555550101' });
+  const c = app.frame(80, 24, app.replayAt + 8000).rows(24);
+  assert.deepEqual(c, app.frame(80, 24, app.replayAt + 12000).rows(24));
 });

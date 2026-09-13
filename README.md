@@ -4,7 +4,7 @@ Alive5 messages and conversations in your terminal. Open a fixed-screen workspac
 
 ![Alive5 terminal workspace](docs/media/workspace.png)
 
-[Watch the logo entrance](docs/media/logo-motion.gif)
+[Compare the eight logos](docs/media/logos-v3.png) · [Watch the motion](docs/media/logo-motion.gif)
 
 ```sh
 npm install
@@ -16,15 +16,17 @@ Requires Node.js 22 or newer. This is a local preview, not a published npm packa
 
 ## The terminal workspace
 
-The header stays visible. Menus, forms, transcripts, and lists replace the content panel instead of adding lines to your shell. The full Alive5 logo appears on Home and Appearance; a compact version stays above task screens. Exit restores your previous terminal content.
+The header stays visible. Menus, forms, transcripts, and lists replace the content panel instead of adding lines to your shell. Your selected Alive 5 wordmark appears on Home and Appearance. Task screens use a single-line header, leaving room for the form or transcript. Exit restores your previous terminal content.
 
 - Arrow keys or `j`/`k` navigate; Enter opens an item. Keys `1`–`6` select a workspace section.
-- `a` opens Appearance. Choose Signal sweep, Slow glow, or Orbit. Full, Entrance only, and Off control motion. `r` replays the entrance; Space pauses it. Save appearance to keep your choice.
+- `a` opens Appearance. Press `1`–`8` to compare Wordmark, Slash, Outline, Pixel, Dots, Wire, Slab, and Label. Use ↑↓ to choose a setting and ←→ to change it. `s` saves your choice, `r` replays the effect, and Space pauses motion. You can also select Save appearance and press Enter.
 - Tab moves between form fields. Ctrl+U clears a field. Ctrl+J adds a line break in Message. Pasted multiline text stays in the field and does not submit it.
 - Preview shows the full message and addressing before Enter sends. Esc edits the draft. Overlong text is rejected instead of silently shortened.
 - Lists scroll inside their panel with arrows or Page Up/Down. `n` fetches the next API page when available. `q` quits outside text fields; Ctrl+C exits from anywhere.
 
-The logo uses the official silhouette and orange `#EB5124`, with light lettering for dark terminals. Appearance preferences live in `appearance.json` beside the credential file. The 850 ms entrance runs once. Idle motion is capped near 6 fps; typing pauses animation. `--no-animation` and `NO_COLOR` force motion off. See [design and review notes](docs/design.md).
+The eight wordmarks all spell Alive 5, using the brand orange `#EB5124` for the 5. Outline is the initial choice. Light sweep, Slow glow, and Star drift work with every logo. Continuous mode keeps the preview moving; Entrance only runs the effect for 850 ms; Off draws a static logo. The lettering stays visible throughout. Animation is capped near 6 fps after startup and stops on task screens.
+
+Appearance preferences live in `appearance.json` beside the credential file. `--no-animation`, `ALIVE5_NO_ANIMATION=1`, and `NO_COLOR` force motion off. The minimum interactive size is 40×24; 80×24 gives more room for hints and descriptions. Wider wordmarks fall back to plain Alive 5 if a command banner cannot fit them. See [V3 design and research](docs/design-v3.md).
 
 ## Connect
 
@@ -98,7 +100,7 @@ This version leaves out administrative creation, inbound message injection, webh
 ## Development
 
 ```sh
-npm test        # 14 focused tests, offline, no SMS sent
+npm test        # 16 focused tests, offline, no SMS sent
 npm run check  # formatting plus tests
 npm run format
 npm run demo   # offline interactive fixture

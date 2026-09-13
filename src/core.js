@@ -3,7 +3,7 @@ import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 
-export const VERSION = '0.2.0';
+export const VERSION = '0.3.0';
 export const DOCS = 'https://documenter.getpostman.com/view/12135254/UVsQr3zh';
 export class CliError extends Error {
   constructor(code, message, exitCode = 1, extra = {}) {
