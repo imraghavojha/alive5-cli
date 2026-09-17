@@ -135,6 +135,27 @@ export class Screen {
   line(x, y, w, fg = this.theme.line) {
     this.put(x, y, '─'.repeat(Math.max(0, w)), fg);
   }
+  /** A rounded frame with an optional title set into the top edge. */
+  box(x, y, w, h, title = '', tone = this.theme.muted) {
+    const fg = this.theme.line;
+    this.put(x, y, '╭' + '─'.repeat(w - 2) + '╮', fg);
+    for (let row = y + 1; row < y + h - 1; row++) {
+      this.put(x, row, '│', fg);
+      this.put(x + w - 1, row, '│', fg);
+    }
+    this.put(x, y + h - 1, '╰' + '─'.repeat(w - 2) + '╯', fg);
+    if (title) this.text(x + 2, y, w - 4, ` ${title} `, tone, this.theme.bg, true);
+  }
+  /**
+   * Marks already-drawn cells as an OSC 8 hyperlink; terminals without support
+   * ignore it. URLs can carry API data, so only printable ASCII survives.
+   */
+  link(x, y, w, url) {
+    if (y < 0 || y >= this.height) return;
+    this.rowCache[y] = null;
+    url = String(url).replace(/[^\x21-\x7e]/g, '');
+    for (let i = Math.max(0, x); i < Math.min(this.width, x + w); i++) this.cells[y][i].link = url;
+  }
   text(x, y, w, text, fg = this.theme.ink, bg = this.theme.bg, bold = false) {
     this.put(x, y, clip(text, w), fg, bg, bold);
   }
@@ -149,7 +170,12 @@ export class Screen {
       if (this.rowCache[index]?.depth === depth) return this.rowCache[index].text;
       let out = '';
       let prev = '';
+      let link;
       for (const cell of row) {
+        if (cell.link !== link) {
+          out += `\x1b]8;;${cell.link || ''}\x1b\\`;
+          link = cell.link;
+        }
         const style = depth
           ? `\x1b[${cell.fg == null ? '39' : color(cell.fg, false, depth)};${cell.bg == null ? '49' : color(cell.bg, true, depth)};${cell.bold ? 1 : 22};${cell.reverse ? 7 : 27}m`
           : cell.bold
@@ -163,7 +189,7 @@ export class Screen {
         out +=
           !depth && cell.ch === '▀' && cell.bg !== this.background(this.theme.bg) ? '█' : cell.ch;
       }
-      const text = out + '\x1b[0m';
+      const text = out + (link ? '\x1b]8;;\x1b\\' : '') + '\x1b[0m';
       this.rowCache[index] = { depth, text };
       return text;
     });

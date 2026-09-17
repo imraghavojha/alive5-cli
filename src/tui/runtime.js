@@ -13,6 +13,7 @@ const FRAME_INTERVAL_MS = 1000 / 20;
 const ANIMATION_INTERVAL_MS = 160;
 const ENTRANCE_WINDOW_MS = 900;
 const SPINNER_INTERVAL_MS = 100;
+const NOTICE_MS = 4000;
 
 export async function launchTui(options = {}) {
   const terminal = new Terminal();
@@ -111,9 +112,18 @@ export async function launchTui(options = {}) {
   // request turns the spinner, and the banner animates on Home and Appearance.
   let lastAnimation = 0;
   let lastSpin = 0;
+  let notice = '';
+  let noticeSince = 0;
   timer = setInterval(() => {
     if (finished) return;
     const now = performance.now();
+    if (workspace.state.notice !== notice) {
+      notice = workspace.state.notice;
+      noticeSince = now;
+    } else if (notice && now - noticeSince > NOTICE_MS) {
+      workspace.state.notice = '';
+      workspace.changed();
+    }
     if (workspace.state.busy && now - lastSpin >= SPINNER_INTERVAL_MS) {
       lastSpin = now;
       workspace.state.tick++;

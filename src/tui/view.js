@@ -2,7 +2,7 @@
 // bodies live in ./panels.js; this file owns only the chrome around them.
 
 import { Screen } from './screen.js';
-import { wrap, clipWithEllipsis } from './text.js';
+import { wrap, stringWidth } from './text.js';
 import { WORDMARK, drawLogo } from './logo.js';
 import { layout, showsBanner, MIN_WIDTH, MIN_HEIGHT } from './layout.js';
 import { panels } from './panels.js';
@@ -67,6 +67,7 @@ export function view(state, width, height, time = 0) {
     return s;
   }
   const workspaceName = state.account?.org_name || 'Connect your workspace';
+  if (state.notice) toast(s, l, state.notice, stringWidth(workspaceName));
   if (showsBanner(panel.kind)) {
     s.text(3, 1, l.w, workspaceName, s.theme.muted);
     drawLogo(s, {
@@ -89,28 +90,55 @@ export function view(state, width, height, time = 0) {
   return s;
 }
 
+/** Notices appear at the header's right edge and fade on the next key or after a moment. */
+function toast(s, l, notice, reserved) {
+  // Leave the wordmark and workspace name on the left untouched.
+  const room = l.w - reserved - WORDMARK.length - 6;
+  const text = wrap(notice, Math.max(10, room - 2))[0];
+  const x = 3 + l.w - stringWidth(text) - 2;
+  s.put(x, 1, '●', s.theme.orange);
+  s.text(x + 2, 1, stringWidth(text), text, s.theme.ink);
+}
+
 /**
- * The status area holds an error, a notice, or the panel's shortcuts. Errors are
- * wrapped over the available lines instead of being clipped mid-sentence.
+ * Shortcut hints written as "key what · key what". Keys are drawn bright and
+ * their descriptions dim, so the eye finds the key first.
+ */
+function keys(s, x, y, w, hint) {
+  let at = x;
+  const write = (text, fg, bold = false) => {
+    if (!text || at >= x + w) return;
+    s.text(at, y, x + w - at, text, fg, s.theme.bg, bold);
+    at += stringWidth(text);
+  };
+  hint.split(' · ').forEach((part, i) => {
+    const [key, ...what] = part.split(' ');
+    write(i ? '  ' : '', s.theme.faint);
+    write(key, s.theme.ink, true);
+    write(what.length ? ' ' + what.join(' ') : '', s.theme.faint);
+  });
+}
+
+/**
+ * The status area holds an error or the panel's shortcuts. Errors are wrapped
+ * over the available lines instead of being clipped mid-sentence.
  */
 function footer(s, state, panel, l, width, height) {
   const narrow = l.narrow;
   const hint = HINTS[panel.kind]?.[narrow ? 1 : 0] || '';
-  const message = state.error || state.notice || hint;
-  const tone = state.error ? s.theme.hot : s.theme.muted;
-  const lines = wrap(message, l.w).slice(0, 2);
+  const lines = state.error ? wrap(state.error, l.w).slice(0, 2) : [hint];
   // A two-line message borrows the rule's row so the panel never shifts.
   const ruleRow = height - 3 - (lines.length > 1 ? 1 : 0);
   s.line(3, ruleRow, l.w);
-  lines.forEach((text, i) => s.text(3, height - 2 - (lines.length - 1) + i, l.w, text, tone));
+  lines.forEach((text, i) => {
+    const y = height - 2 - (lines.length - 1) + i;
+    if (state.error) s.text(3, y, l.w, text, s.theme.hot);
+    else keys(s, 3, y, l.w, text);
+  });
   const version = 'v' + VERSION;
-  s.text(
-    3,
-    height - 1,
-    l.w - version.length - 2,
-    clipWithEllipsis(secondary(state, panel, narrow), l.w - version.length - 2),
-    s.theme.faint,
-  );
+  const extra = secondary(state, panel, narrow);
+  if (state.busy) s.text(3, height - 1, l.w - version.length - 2, extra, s.theme.orange);
+  else keys(s, 3, height - 1, l.w - version.length - 2, extra);
   s.text(3 + l.w - version.length, height - 1, version.length, version, s.theme.faint);
 }
 

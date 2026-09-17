@@ -6,8 +6,8 @@ import { CliError } from '../errors.js';
 import { config, saveConfig, saveAppearance, appearanceDefaults } from '../storage.js';
 import { validateKey, dateRange, MESSAGE_LIMIT } from '../validate.js';
 import { displayName } from '../normalize.js';
-import { sanitize, wrap } from './text.js';
-import { visibleRows } from './panels.js';
+import { sanitize } from './text.js';
+import { visibleRows, layoutLines } from './panels.js';
 import { drawLogo, logos } from './logo.js';
 import { view, SHORTCUTS } from './view.js';
 import { layout, navigation, showsBanner } from './layout.js';
@@ -360,7 +360,7 @@ export class Workspace {
     const panel = this.state.panel;
     const l = layout(width, height, panel.kind, this.state.logo);
     if (panel.kind === 'reader') {
-      const count = panel.lines.flatMap((line) => wrap(line, Math.max(10, l.w - 2))).length;
+      const count = layoutLines(panel.lines, Math.max(10, l.w - 2)).length;
       panel.scroll = Math.max(0, Math.min(panel.scroll, count - Math.max(1, l.h - 4)));
     } else if (panel.kind === 'help') {
       panel.scroll = Math.max(0, Math.min(panel.scroll, panel.lines.length - Math.max(1, l.h - 4)));

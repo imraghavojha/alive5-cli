@@ -179,7 +179,15 @@ test('record lists stay compact, filter loaded rows, and open full detail', asyn
   assert.ok(app.frame(100, 30).plain().includes('filter "jordan" on loaded records'));
   await press(app, 'return');
   assert.equal(app.state.panel.kind, 'reader');
-  assert.ok(app.state.panel.lines.some((l) => l.startsWith('First name: Jordan')));
+  assert.ok(
+    app.state.panel.lines.some(([name, value]) => name === 'First name' && value === 'Jordan'),
+  );
+  // Values line up in one column, and email addresses are links.
+  const screen = app.frame(100, 30);
+  const rows = screen.plain().split('\n');
+  const at = (label, text) => rows.find((r) => r.includes(label)).indexOf(text);
+  assert.equal(at('First name', 'Jordan'), at('Email', 'j@x.test'));
+  assert.ok(screen.rows(24).some((r) => r.includes('\x1b]8;;mailto:j@x.test')));
   // Back restores the list with its filter and selection intact.
   await press(app, 'escape');
   assert.equal(app.state.panel.kind, 'list');
@@ -270,10 +278,10 @@ test('wide lists show selected details beside two readable columns', () => {
     },
   ]);
   const wide = app.frame(110, 38).plain();
-  assert.ok(wide.includes('SELECTED RECORD'));
+  assert.ok(wide.includes('Details'));
   assert.ok(wide.includes('+15555550100'));
   assert.ok(wide.includes('avery@example.test'));
-  assert.equal(app.frame(64, 30).plain().includes('SELECTED RECORD'), false);
+  assert.equal(app.frame(64, 30).plain().includes('Details'), false);
 });
 
 test('wide conversation details reserve the hint row and compose to nested contact', async () => {

@@ -2,7 +2,7 @@
 // the panel it was given; the Workspace owns state transitions and redraws.
 
 import * as edit from './editor.js';
-import { visibleRows } from './panels.js';
+import { visibleRows, layoutLines } from './panels.js';
 import { navigation } from './layout.js';
 import { logos } from './logo.js';
 import { wrap } from './text.js';
@@ -45,7 +45,7 @@ export const handlers = {
   reader(app, str, key) {
     const panel = app.state.panel;
     const width = Math.max(10, app.contentWidth() - 2);
-    const total = panel.lines.flatMap((t) => wrap(t, width)).length;
+    const total = layoutLines(panel.lines, width).length;
     const visible = Math.max(1, app.contentHeight() - 4);
     scroll(panel, str, key, Math.max(0, total - visible));
     if (str === 'n' && panel.next) return panel.next();

@@ -3,11 +3,25 @@
 
 import { displayName } from '../normalize.js';
 
-/** ISO timestamps are shown without the T and Z, which cost width and read badly. */
-const shortTime = (v) =>
-  String(v)
-    .replace('T', ' ')
-    .replace(/(:\d{2})?(\.\d+)?Z?$/, '');
+const pad = (n) => String(n).padStart(2, '0');
+
+/** Timestamps in this computer's timezone, as the date presets are. */
+export function shortTime(v) {
+  const d = new Date(v);
+  if (Number.isNaN(d.valueOf())) return plain(v);
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+/** Lists say how long ago something happened; the detail view keeps the exact time. */
+export function ago(v, now = Date.now()) {
+  const seconds = (now - Date.parse(v)) / 1000;
+  if (Number.isNaN(seconds)) return plain(v);
+  if (seconds < 60) return 'just now';
+  if (seconds < 3600) return `${Math.floor(seconds / 60)}m ago`;
+  if (seconds < 86400) return `${Math.floor(seconds / 3600)}h ago`;
+  if (seconds < 7 * 86400) return `${Math.floor(seconds / 86400)}d ago`;
+  return shortTime(v).slice(0, 10);
+}
 
 const TIME_KEYS = new Set(['at', 'updatedAt', 'startedAt', 'endedAt']);
 
@@ -15,6 +29,10 @@ const value = (v, key) => {
   if (key && TIME_KEYS.has(key) && typeof v === 'string') return shortTime(v);
   return plain(v);
 };
+
+const cell = (v, key) => (TIME_KEYS.has(key) && typeof v === 'string' ? ago(v) : plain(v));
+
+const LINKS = { email: (v) => `mailto:${v}`, phone: (v) => `tel:${v}` };
 
 const plain = (v) => {
   if (v == null || v === '') return '—';
@@ -58,7 +76,7 @@ export function describe(kind, records) {
     columns: spec.columns,
     rows: records.map((record) => ({
       record,
-      cells: spec.columns.map(({ key, from }) => value(from ? from(record) : record[key], key)),
+      cells: spec.columns.map(({ key, from }) => cell(from ? from(record) : record[key], key)),
       title: spec.title(record),
     })),
   };
@@ -91,7 +109,7 @@ const TABLES = {
   messages: {
     title: (m) => `${m.sender || 'Unknown'} · ${m.at ? shortTime(m.at) : ''}`,
     columns: [
-      column('at', 'TIME', 17),
+      column('at', 'WHEN', 10),
       column('sender', 'SENDER', 18),
       column('text', 'MESSAGE', 44),
     ],
@@ -102,7 +120,7 @@ const TABLES = {
       column('contact', 'CONTACT', 22, (c) => displayName(c.contact)),
       column('type', 'TYPE', 8),
       column('messages', 'MESSAGES', 9, (c) => (c.messages || []).length),
-      column('startedAt', 'STARTED', 17),
+      column('startedAt', 'STARTED', 10),
     ],
   },
   generic: (records) => ({
@@ -117,7 +135,13 @@ const TABLES = {
 /** The searchable text for a row, used by list filtering. */
 export const searchText = (row) => row.cells.join(' ').toLowerCase();
 
-/** Labelled lines for one record, including nested contacts and transcripts. */
+/** One detail row: a label, its value, and a link where the value has one. */
+const pair = (key, v) => [label(key), value(v, key), LINKS[key]?.(v)];
+
+/**
+ * Detail for one record. Plain strings are headings or prose; arrays are
+ * [label, value, link] rows that the panels draw as aligned columns.
+ */
 export function detailLines(record) {
   const lines = [];
   for (const [key, v] of Object.entries(record)) {
@@ -125,11 +149,11 @@ export function detailLines(record) {
     if (key === 'contact' || key === 'channel') {
       lines.push(`› ${label(key)}`);
       for (const [k, nested] of Object.entries(v || {}))
-        if (nested != null && nested !== '') lines.push(`${label(k)}: ${value(nested, k)}`);
+        if (nested != null && nested !== '') lines.push(pair(k, nested));
       lines.push('');
       continue;
     }
-    lines.push(`${label(key)}: ${value(v, key)}`);
+    lines.push(pair(key, v));
   }
   if (Array.isArray(record.messages)) {
     lines.push('', `› Transcript · ${record.messages.length} messages`);
@@ -143,8 +167,11 @@ export function detailLines(record) {
   return lines;
 }
 
-/** Labelled lines for a single non-list result, such as a send outcome. */
+/** Labelled rows for a single non-list result, such as a send outcome. */
 export const resultLines = (data) =>
   Object.entries(data || {})
     .filter(([, v]) => v != null && v !== '')
-    .map(([k, v]) => `${label(k)}: ${value(v, k)}`);
+    .map(([k, v]) => pair(k, v));
+
+/** A detail row as one line of text, for the linear workspace. */
+export const lineText = (line) => (Array.isArray(line) ? `${line[0]}: ${line[1]}` : line);

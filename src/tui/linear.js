@@ -6,6 +6,7 @@ import { Workspace } from './workspace.js';
 import { navigation } from './layout.js';
 import { visibleRows } from './panels.js';
 import { sanitize } from './text.js';
+import { lineText } from './records.js';
 
 const say = (output, text = '') => output.write(sanitize(String(text)) + '\n');
 
@@ -41,7 +42,7 @@ export function describeLinear(state) {
     lines.push(...panel.context.map(([name, value]) => `${name}: ${value || '—'}`));
     lines.push('Message:', panel.form.message || '');
     if (!panel.outcome) lines.push('Type SEND to submit this text once.');
-  } else if (panel.kind === 'reader') lines.push(...panel.lines);
+  } else if (panel.kind === 'reader') lines.push(...panel.lines.map(lineText));
   else if (panel.kind === 'appearance') {
     lines.push(
       `1. Wordmark: ${state.logo}`,

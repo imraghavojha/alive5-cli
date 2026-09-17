@@ -1,7 +1,7 @@
 // One draw function per panel kind. Each receives the panel, the screen, and the
 // resolved layout, and owns nothing outside its content area.
 
-import { wrap, clipWithEllipsis } from './text.js';
+import { wrap, clipWithEllipsis, stringWidth } from './text.js';
 import { wrapWithCaret, length } from './editor.js';
 import { MESSAGE_LIMIT } from '../validate.js';
 import { logos, logoById } from './logo.js';
@@ -43,6 +43,46 @@ export function scrollWindow(index, count, visible) {
   return Math.max(0, start);
 }
 
+/** A proportional thumb on a one-column track; nothing when everything fits. */
+function scrollbar(s, x, y, h, start, visible, total) {
+  if (total <= visible || h < 2) return;
+  const size = Math.max(1, Math.round((h * visible) / total));
+  const at = Math.round(((h - size) * start) / (total - visible));
+  for (let i = 0; i < h; i++) {
+    const thumb = i >= at && i < at + size;
+    s.put(x, y + i, thumb ? '┃' : '│', thumb ? s.theme.muted : s.theme.line);
+  }
+}
+
+/**
+ * Wraps detail lines into screen rows. Strings are headings or prose; arrays
+ * are [label, value, link] pairs whose values line up in one column.
+ */
+export function layoutLines(lines, width) {
+  const labels = lines.filter(Array.isArray).map(([name]) => stringWidth(name));
+  const indent = Math.min(16, Math.max(0, ...labels) + 2);
+  return lines.flatMap((line) => {
+    if (!Array.isArray(line)) return wrap(line, width).map((text) => ({ text }));
+    const [name, value, url] = line;
+    return wrap(value, Math.max(8, width - indent)).map((text, i) => ({
+      label: i ? '' : name,
+      text,
+      url,
+      indent,
+    }));
+  });
+}
+
+function drawLines(s, x, y, w, rows) {
+  rows.forEach((r, i) => {
+    if (r.indent == null)
+      return s.text(x, y + i, w, r.text, r.text.startsWith('›') ? s.theme.orange : s.theme.ink);
+    s.text(x, y + i, r.indent - 1, r.label, s.theme.muted);
+    s.text(x + r.indent, y + i, w - r.indent, r.text, s.theme.ink);
+    if (r.url) s.link(x + r.indent, y + i, stringWidth(r.text), r.url);
+  });
+}
+
 function scrollNote(s, l, start, shown, total, suffix = '') {
   if (total <= shown) return;
   muted(
@@ -73,6 +113,7 @@ export const panels = {
     panel.options
       .slice(start, start + visible)
       .forEach((item, i) => row(s, l, l.top + 3 + i, start + i === panel.index, item.label));
+    scrollbar(s, l.x + l.w, l.top + 3, visible, start, visible, panel.options.length);
     scrollNote(s, l, start, visible, panel.options.length);
   },
 
@@ -94,80 +135,65 @@ export const panels = {
 
   reader(s, l, panel) {
     heading(s, l, panel.title, panel.subtitle || '');
-    const lines = panel.lines.flatMap((t) => wrap(t, l.w - 2));
+    const lines = layoutLines(panel.lines, l.w - 2);
     const visible = Math.max(1, l.h - 4);
     const offset = Math.min(panel.scroll, Math.max(0, lines.length - visible));
-    lines
-      .slice(offset, offset + visible)
-      .forEach((text, i) =>
-        s.text(
-          l.x + 1,
-          l.top + 3 + i,
-          l.w - 2,
-          text,
-          text.startsWith('›') ? s.theme.orange : s.theme.ink,
-        ),
-      );
+    drawLines(s, l.x + 1, l.top + 3, l.w - 2, lines.slice(offset, offset + visible));
+    scrollbar(s, l.x + l.w, l.top + 3, visible, offset, visible, lines.length);
     scrollNote(s, l, offset, visible, lines.length, '  ·  ↑↓ scroll');
   },
 
   list(s, l, panel) {
     heading(s, l, panel.title, panel.subtitle || '');
     const table = l.list ? { ...l, ...l.list } : l;
+    const top = l.top + 2;
+    const height = l.bottom - top;
+    s.box(table.x, top, table.w, height);
+    // Rows sit inside the frame; the right edge doubles as the scrollbar track.
+    const inner = { x: table.x + 1, w: table.w - 2 };
     const rows = visibleRows(panel);
-    const visible = Math.max(1, l.h - 5);
+    const visible = Math.max(1, height - 3);
     const start = scrollWindow(panel.index, rows.length, visible);
     const columnIndexes =
-      table.w >= 70
+      inner.w >= 70
         ? panel.columns.map((_, index) => index)
         : panel.recordKind === 'messages' && panel.columns.length >= 3
           ? [1, 2]
           : panel.columns.slice(0, 2).map((_, index) => index);
     const columns = columnIndexes.map((index) => panel.columns[index]);
-    const widths = columnWidths(columns, table.w);
+    const widths = columnWidths(columns, inner.w);
     // Headers line up with cell text, which sits after the two-column marker.
     s.text(
-      table.x + 3,
-      l.top + 3,
-      table.w - 4,
+      inner.x + 3,
+      top + 1,
+      inner.w - 4,
       columns.map((c, i) => c.header.padEnd(widths[i]).slice(0, widths[i])).join(' '),
       s.theme.faint,
     );
-    if (!rows.length) muted(s, table.x + 2, l.top + 4, table.w - 2, 'Nothing matches this filter.');
+    if (!rows.length) muted(s, inner.x + 2, top + 2, inner.w - 2, 'Nothing matches this filter.');
     rows.slice(start, start + visible).forEach((r, i) => {
       const text = columnIndexes
         .map((index) => r.cells[index])
         .map((cell, n) => clipWithEllipsis(cell, widths[n]).padEnd(widths[n]))
         .join(' ');
-      row(s, table, l.top + 4 + i, start + i === panel.index, text);
+      row(s, inner, top + 2 + i, start + i === panel.index, text);
     });
-    if (l.detail) {
-      s.text(l.detail.x, l.top + 3, l.detail.w, 'SELECTED RECORD', s.theme.faint);
-      const selected = rows[panel.index];
-      if (selected) {
-        s.text(l.detail.x, l.top + 4, l.detail.w, selected.title, s.theme.ink, s.theme.bg, true);
-        const lines = detailLines(selected.record).flatMap((line) => wrap(line, l.detail.w));
-        lines
-          .slice(0, Math.max(0, l.h - 7))
-          .forEach((line, i) => s.text(l.detail.x, l.top + 6 + i, l.detail.w, line, s.theme.muted));
-        if (lines.length > l.h - 7)
-          muted(s, l.detail.x, l.bottom - 1, l.detail.w, 'Enter for full details');
-      }
-    }
+    scrollbar(s, table.x + table.w - 1, top + 2, visible, start, visible, rows.length);
     // The filter state is always stated, so a short filtered list is never
-    // mistaken for the whole account.
-    const filter = panel.filter ? `filter "${panel.filter}" on loaded records` : '';
+    // mistaken for the whole account. Both notes sit in the frame's bottom edge.
+    const bottom = top + height - 1;
+    const filter = panel.filtering
+      ? `/${panel.filter}▏`
+      : panel.filter
+        ? `filter "${panel.filter}" on loaded records`
+        : '';
+    if (filter)
+      s.text(inner.x + 1, bottom, inner.w - 14, ` ${filter} `, s.theme.orange, s.theme.bg);
     const range = rows.length
-      ? `${start + 1}–${Math.min(start + visible, rows.length)} of ${rows.length}`
-      : 'no matches';
-    if (filter || rows.length > visible)
-      muted(
-        s,
-        table.x + 1,
-        l.bottom - 1,
-        table.w - 1,
-        [range, filter].filter(Boolean).join('  ·  '),
-      );
+      ? ` ${start + 1}–${Math.min(start + visible, rows.length)} of ${rows.length} `
+      : ' no matches ';
+    s.text(table.x + table.w - 2 - range.length, bottom, range.length, range, s.theme.muted);
+    if (l.detail) detail(s, l, top, height, rows[panel.index]);
   },
 
   preview(s, l, panel) {
@@ -248,12 +274,26 @@ export const panels = {
         s.text(l.x, y, l.w, keys, s.theme.orange);
         return;
       }
-      s.text(l.x + 1, y, 18, keys, s.theme.ink);
+      s.text(l.x + 1, y, 18, keys, s.theme.ink, s.theme.bg, true);
       muted(s, l.x + 19, y, l.w - 19, what);
     });
+    scrollbar(s, l.x + l.w, l.top + 3, visible, offset, visible, panel.lines.length);
     scrollNote(s, l, offset, visible, panel.lines.length);
   },
 };
+
+/** The selected record beside a wide list, framed like the table it describes. */
+function detail(s, l, top, height, selected) {
+  const { x, w } = l.detail;
+  s.box(x, top, w, height, 'Details');
+  if (!selected) return;
+  s.text(x + 2, top + 1, w - 4, selected.title, s.theme.ink, s.theme.bg, true);
+  const lines = layoutLines(detailLines(selected.record), w - 4);
+  const room = Math.max(0, height - 4);
+  drawLines(s, x + 2, top + 3, w - 4, lines.slice(0, room));
+  if (lines.length > room)
+    s.text(x + 2, top + height - 1, w - 4, ' Enter for full details ', s.theme.muted);
+}
 
 const OUTCOMES = {
   accepted: 'Accepted by Alive5. Handset delivery is not yet confirmed.',
