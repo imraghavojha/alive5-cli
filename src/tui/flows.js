@@ -3,6 +3,8 @@
 // change to a task touches this file and a change to the machinery touches that
 // one.
 
+import { homedir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { config, saveConfig } from '../storage.js';
 import { validateKey, dateRange } from '../validate.js';
 import { displayName } from '../normalize.js';
@@ -29,7 +31,7 @@ const AGENT_GUIDE = [
   '',
   'Piped commands return one JSON envelope and never prompt.',
   'Use --message-file for multiline text.',
-  'Docs: docs/agents.md',
+  `Guide: ${fileURLToPath(new URL('../../docs/agents.md', import.meta.url)).replace(homedir(), '~')}`,
 ];
 
 const DATE_PRESETS = [
@@ -40,8 +42,12 @@ const DATE_PRESETS = [
   { label: 'Choose dates…', days: null },
 ];
 
-const isoDay = (offsetDays = 0) =>
-  new Date(Date.now() - offsetDays * 86400000).toISOString().slice(0, 10);
+/** A calendar day on this computer's clock; toISOString would shift it to UTC. */
+export function isoDay(offsetDays = 0, now = new Date()) {
+  const d = new Date(now.getFullYear(), now.getMonth(), now.getDate() - offsetDays);
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
 
 export async function connect(app) {
   await app.run('Connecting', async (current) => {

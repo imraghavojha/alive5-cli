@@ -25,8 +25,11 @@ const HINTS = {
   help: ['↑↓ scroll · Esc close', '↑↓ · Esc close'],
 };
 
-/** The second footer line: context-specific keys, or the busy indicator. */
+const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
+
+/** The second footer line: the busy indicator first, otherwise context-specific keys. */
 function secondary(state, panel, narrow) {
+  if (state.busy) return `${SPINNER[state.tick % SPINNER.length]} ${state.busy}…`;
   if (panel.kind === 'appearance')
     return narrow
       ? '1–8 wordmark · s save'
@@ -50,7 +53,6 @@ function secondary(state, panel, narrow) {
     ]
       .filter(Boolean)
       .join(' · ');
-  if (state.busy) return '◌ ' + state.busy;
   return '';
 }
 

@@ -42,6 +42,7 @@ export class Workspace {
       error: '',
       notice: '',
       busy: '',
+      tick: 0,
       ...appearanceDefaults,
       ...settings,
       entrance: 0,

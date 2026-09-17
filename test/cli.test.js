@@ -309,6 +309,16 @@ test('parent commands name the missing subcommand instead of dumping help', () =
   }
 });
 
+test('typos suggest the intended command and missing flags name their field', () => {
+  const typo = JSON.parse(run(['contcts', 'list']).stdout);
+  assert.equal(typo.error.code, 'UNKNOWN_COMMAND');
+  assert.deepEqual(typo.error.details.suggestions, ['contacts']);
+  assert.deepEqual(JSON.parse(run(['sms', 'sned']).stdout).error.details.suggestions, ['send']);
+  const r = run(['sms', 'send', '--to', '+15555550101']);
+  assert.equal(r.status, 2);
+  assert.equal(JSON.parse(r.stdout).error.field, 'from');
+});
+
 test('shell completions cover the real command tree', () => {
   for (const shell of ['bash', 'zsh', 'fish']) {
     const r = run(['completion', shell]);

@@ -89,16 +89,57 @@ function build() {
   return { program, json };
 }
 
+/** Edit distance, for suggesting the command a typo was probably meant to be. */
+function distance(a, b) {
+  let row = Array.from({ length: b.length + 1 }, (_, i) => i);
+  for (let i = 1; i <= a.length; i++) {
+    const next = [i];
+    for (let j = 1; j <= b.length; j++)
+      next[j] = Math.min(row[j] + 1, next[j - 1] + 1, row[j - 1] + (a[i - 1] === b[j - 1] ? 0 : 1));
+    row = next;
+  }
+  return row[b.length];
+}
+
+/**
+ * The root and every group have an action, so Commander reports a mistyped
+ * command as "too many arguments". Name the unknown word and the likely command.
+ */
+function unknownCommand(program, message) {
+  const [, owner, words] = message.match(/arguments(?: for '([^']+)')?\..*: (.+)\.$/) || [];
+  const find = (cmd) =>
+    cmd.commands.find((c) => c.name() === owner) || cmd.commands.map(find).find(Boolean);
+  const parent = owner ? find(program) : program;
+  const names = parent?.commands.map((c) => c.name()) || [];
+  if (!words || !names.length) return null;
+  const word = words.split(', ')[0];
+  const suggestions = names.filter((n) => n.startsWith(word) || distance(word, n) <= 2);
+  const path = owner ? `alive5 ${owner}` : 'alive5';
+  return new CliError(
+    'UNKNOWN_COMMAND',
+    `Unknown command "${word}".${suggestions.length ? ` Did you mean ${path} ${suggestions[0]}?` : ''} Run ${path} --help.`,
+    EXIT.usage,
+    { details: { command: word, suggestions } },
+  );
+}
+
 /** Anything thrown becomes a CliError so the reported code and exit status agree. */
-function toCliError(e) {
+function toCliError(e, program) {
   if (e instanceof CliError) return e;
   if (e instanceof CommanderError) {
     const message = e.message.replace(/^error: /, '');
+    if (e.code === 'commander.excessArguments') {
+      const unknown = unknownCommand(program, message);
+      if (unknown) return unknown;
+    }
+    const missing = message.match(/required option '(--([\w-]+)[^']*)' not specified/);
+    if (missing)
+      return new CliError('MISSING_OPTION', `Add ${missing[1]}.`, EXIT.usage, {
+        field: missing[2].replace(/-(\w)/g, (_, c) => c.toUpperCase()),
+      });
     return new CliError(
       'INVALID_ARGUMENT',
-      /too many arguments/i.test(message)
-        ? `${message} Run alive5 --help or alive5 schema.`
-        : message,
+      `${message[0].toUpperCase()}${message.slice(1).replace(/([^.])$/, '$1.')} Run alive5 --help or alive5 schema.`,
       EXIT.usage,
     );
   }
@@ -118,7 +159,7 @@ export async function main(argv = process.argv) {
   } catch (thrown) {
     // --help and --version exit successfully through the same throw path.
     if (thrown instanceof CommanderError && thrown.exitCode === 0) return;
-    const e = toCliError(thrown);
+    const e = toCliError(thrown, program);
     if (json()) console.log(JSON.stringify(failure(e)));
     else if (e.code !== 'CANCELLED') console.error(`\n  Error: ${safe(e.message)}\n`);
     process.exitCode = e.exitCode;

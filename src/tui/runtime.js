@@ -12,6 +12,7 @@ import { appearance } from '../storage.js';
 const FRAME_INTERVAL_MS = 1000 / 20;
 const ANIMATION_INTERVAL_MS = 160;
 const ENTRANCE_WINDOW_MS = 900;
+const SPINNER_INTERVAL_MS = 100;
 
 export async function launchTui(options = {}) {
   const terminal = new Terminal();
@@ -106,11 +107,19 @@ export async function launchTui(options = {}) {
   process.on('unhandledRejection', onError);
   draw();
 
-  // One capped scheduler. Static screens and task panels perform no render work.
+  // One capped scheduler. Idle task panels perform no render work; a pending
+  // request turns the spinner, and the banner animates on Home and Appearance.
   let lastAnimation = 0;
+  let lastSpin = 0;
   timer = setInterval(() => {
-    if (finished || !showsBanner(workspace.state.panel.kind)) return;
+    if (finished) return;
     const now = performance.now();
+    if (workspace.state.busy && now - lastSpin >= SPINNER_INTERVAL_MS) {
+      lastSpin = now;
+      workspace.state.tick++;
+      workspace.changed();
+    }
+    if (!showsBanner(workspace.state.panel.kind)) return;
     const settling = now - workspace.replayAt < ENTRANCE_WINDOW_MS;
     if (!settling && now - lastAnimation < ANIMATION_INTERVAL_MS) return;
     lastAnimation = now;

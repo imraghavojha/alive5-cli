@@ -13,6 +13,7 @@ import { theme, Screen, themes } from '../src/tui/screen.js';
 import { launchLinear } from '../src/tui/linear.js';
 import { wrapWithCaret } from '../src/tui/editor.js';
 import { sendForm } from '../src/api.js';
+import { isoDay } from '../src/tui/flows.js';
 import { preparePty } from '../scripts/pty-helper.mjs';
 const mock = {
   channels: async () => [{ id: 'c', name: '+15555550100', users: [{ id: 'u', name: 'Avery' }] }],
@@ -144,6 +145,13 @@ test('message editing wraps at words while keeping the caret in place', () => {
   const text = 'See you then!';
   assert.deepEqual(wrapWithCaret(text, 10, text.length).lines, ['See you', 'then!']);
   assert.deepEqual(wrapWithCaret(text, 10, text.length).caret, { row: 1, column: 5 });
+});
+
+test('date presets use the local calendar day, not the UTC one', () => {
+  const lateEvening = new Date(2026, 8, 26, 23, 30);
+  assert.equal(isoDay(0, lateEvening), '2026-09-26');
+  assert.equal(isoDay(-1, lateEvening), '2026-09-27');
+  assert.equal(isoDay(30, lateEvening), '2026-08-27');
 });
 
 test('record lists stay compact, filter loaded rows, and open full detail', async () => {
