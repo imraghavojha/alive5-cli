@@ -43,7 +43,14 @@ export function describeLinear(state) {
     lines.push('Message:', panel.form.message || '');
     if (!panel.outcome) lines.push('Type SEND to submit this text once.');
   } else if (panel.kind === 'reader') lines.push(...panel.lines.map(lineText));
-  else if (panel.kind === 'appearance') {
+  else if (panel.kind === 'transcript') {
+    for (const m of panel.thread.messages)
+      lines.push(
+        `${m.inbound ? '←' : '→'} ${m.sender || 'Unknown'} · ${m.at || ''}`,
+        `  ${m.text ?? ''}`,
+      );
+    lines.push(':reply writes back to this conversation.');
+  } else if (panel.kind === 'appearance') {
     lines.push(
       `1. Wordmark: ${state.logo}`,
       `2. Motion: ${state.motion}`,
@@ -99,6 +106,8 @@ export async function launchLinear({
         app.state.panel.filter = line === ':filter' ? '' : line.slice(8);
         app.state.panel.index = 0;
       } else if (line === ':next' && app.state.panel.next) await app.state.panel.next();
+      else if (line === ':reply' && app.state.panel.kind === 'transcript')
+        await app.messageRecord(app.state.panel.thread);
       else if (line === ':save' && app.state.panel.kind === 'appearance')
         await app.saveAppearance();
       else if (/^\d+$/.test(line)) {

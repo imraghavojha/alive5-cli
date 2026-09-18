@@ -2,13 +2,16 @@
 // the panel it was given; the Workspace owns state transitions and redraws.
 
 import * as edit from './editor.js';
-import { visibleRows, layoutLines } from './panels.js';
+import { visibleRows, layoutLines, bubbles } from './panels.js';
 import { navigation } from './layout.js';
 import { logos } from './logo.js';
 import { wrap } from './text.js';
 import { MESSAGE_LIMIT } from '../validate.js';
 
 const PAGE = 10;
+
+/** Lists whose records can be messaged directly, and the key that does it. */
+export const MESSAGE_KEYS = { contacts: 'm', threads: 'r' };
 
 const clamp = (n, max) => Math.max(0, Math.min(max, n));
 
@@ -51,6 +54,13 @@ export const handlers = {
     if (str === 'n' && panel.next) return panel.next();
   },
 
+  transcript(app, str, key) {
+    const panel = app.state.panel;
+    const total = bubbles(panel.thread, app.contentWidth() - 2).length;
+    scroll(panel, str, key, Math.max(0, total - Math.max(1, app.contentHeight() - 4)));
+    if (str === 'r') return app.messageRecord(panel.thread);
+  },
+
   help(app, str, key) {
     scroll(
       app.state.panel,
@@ -76,11 +86,7 @@ export const handlers = {
       panel.filter = '';
     } else if (key.name === 'return' && rows[panel.index]) app.openRecord(rows[panel.index].record);
     else if (str === 'y' && rows[panel.index]) app.copy(rows[panel.index]);
-    else if (
-      str === 'm' &&
-      ['contacts', 'conversations'].includes(panel.recordKind) &&
-      rows[panel.index]
-    )
+    else if (MESSAGE_KEYS[panel.recordKind] === str && rows[panel.index])
       return app.messageRecord(rows[panel.index].record);
     else if (str === 'n' && panel.next) return panel.next();
   },

@@ -14,6 +14,7 @@ import { launchLinear } from '../src/tui/linear.js';
 import { wrapWithCaret } from '../src/tui/editor.js';
 import { sendForm } from '../src/api.js';
 import { isoDay } from '../src/tui/flows.js';
+import { threads } from '../src/tui/records.js';
 import { preparePty } from '../scripts/pty-helper.mjs';
 const mock = {
   channels: async () => [{ id: 'c', name: '+15555550100', users: [{ id: 'u', name: 'Avery' }] }],
@@ -284,34 +285,43 @@ test('wide lists show selected details beside two readable columns', () => {
   assert.equal(app.frame(64, 30).plain().includes('Details'), false);
 });
 
-test('wide conversation details reserve the hint row and compose to nested contact', async () => {
+test('messages group into threads that read as a conversation and reply in place', async () => {
   const app = new Workspace({ account: { org_name: 'test' }, services: mock });
-  const record = {
-    id: 'thread-1',
-    contact: { firstName: 'Avery', phone: '+15555550101' },
-    messages: Array.from({ length: 30 }, (_, i) => ({ sender: 'Avery', text: `Message ${i + 1}` })),
-  };
-  app.list('Conversations', 'conversations', [record]);
-  const rows = app.frame(110, 38).plain().split('\n');
-  const hint = rows.find((row) => row.includes('Enter for full details'));
-  assert.ok(hint);
-  assert.equal(hint.includes('Message '), false);
-  await app.messageRecord(record);
+  const at = (m) => new Date(Date.now() - m * 60000).toISOString();
+  const rows = [
+    { threadId: 't1', sender: 'Avery', at: at(5), text: 'See you at 10.' },
+    { threadId: 't1', sender: '+15555550101', at: at(9), text: 'Is 10 still OK?' },
+    { threadId: 't2', sender: '+15555550102', at: at(90), text: 'Thanks!' },
+  ];
+  const list = threads(rows);
+  assert.deepEqual(
+    list.map((t) => [t.id, t.phone, t.messages.length]),
+    [
+      ['t1', '+15555550101', 2],
+      ['t2', '+15555550102', 1],
+    ],
+  );
+  assert.deepEqual(
+    list[0].messages.map((m) => m.inbound),
+    [true, false],
+  );
+  app.list('Recent messages', 'threads', list);
+  const wide = app.frame(120, 32).plain();
+  assert.ok(wide.includes('You: See you at 10.'));
+  assert.ok(wide.includes('5m ago'));
+  // The customer's message sits on the left, the reply on the right.
+  const lines = wide.split('\n');
+  const column = (text) => lines.findLast((l) => l.includes(text)).lastIndexOf(text);
+  assert.ok(column('Is 10 still OK?') < column('See you at 10.') - 20);
+  assert.equal(app.frame(60, 24).plain().includes('Is 10 still OK?'), false);
+
+  await press(app, 'return');
+  assert.equal(app.state.panel.kind, 'transcript');
+  await app.handleKey('r');
   await press(app, 'return');
   await press(app, 'return');
   assert.equal(app.state.panel.kind, 'form');
   assert.equal(app.state.panel.values.to, '+15555550101');
-});
-
-test('narrow message lists keep sender and message visible', () => {
-  const app = new Workspace({ account: { org_name: 'test' } });
-  app.list('Recent messages', 'messages', [
-    { sender: 'Avery', at: '2026-09-13T10:30:00Z', text: 'Appointment confirmed' },
-  ]);
-  const plain = app.frame(40, 24).plain();
-  assert.ok(plain.includes('SENDER'));
-  assert.ok(plain.includes('MESSAGE'));
-  assert.ok(plain.includes('Avery'));
 });
 
 test('fresh appearance is calm, saved motion survives, and native colors use defaults', async () => {

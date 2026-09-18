@@ -106,21 +106,16 @@ const TABLES = {
     title: (t) => t.name || t.id,
     columns: [column('name', 'TAG', 30), column('id', 'ID', 30)],
   },
-  messages: {
-    title: (m) => `${m.sender || 'Unknown'} · ${m.at ? shortTime(m.at) : ''}`,
+  threads: {
+    title: (t) => t.name,
     columns: [
-      column('at', 'WHEN', 10),
-      column('sender', 'SENDER', 18),
-      column('text', 'MESSAGE', 44),
-    ],
-  },
-  conversations: {
-    title: (c) => displayName(c.contact) || c.id,
-    columns: [
-      column('contact', 'CONTACT', 22, (c) => displayName(c.contact)),
-      column('type', 'TYPE', 8),
-      column('messages', 'MESSAGES', 9, (c) => (c.messages || []).length),
-      column('startedAt', 'STARTED', 10),
+      column('name', 'CONTACT', 18),
+      column('at', 'WHEN', 9),
+      // The last column takes whatever width is left, so its size is a minimum.
+      column('last', 'LAST MESSAGE', 24, (t) => {
+        const m = t.messages.at(-1);
+        return m ? (m.inbound ? '' : 'You: ') + (m.text ?? '') : '';
+      }),
     ],
   },
   generic: (records) => ({
@@ -132,8 +127,59 @@ const TABLES = {
   }),
 };
 
+const isPhone = (v) => /^\+?[\d\s().-]{7,}$/.test(v || '');
+
+const byTime = (a, b) => String(a.at ?? '').localeCompare(String(b.at ?? ''));
+
+/**
+ * Groups flat SMS rows into conversations, oldest message first. The API does
+ * not say which side sent a message; a phone number as the sender means the
+ * customer, and anything else is a teammate or automation.
+ */
+export function threads(messages) {
+  const groups = new Map();
+  for (const m of messages) {
+    const id = m.threadId || 'unthreaded';
+    if (!groups.has(id)) groups.set(id, []);
+    groups.get(id).push({ ...m, inbound: isPhone(m.sender) });
+  }
+  return [...groups]
+    .map(([id, list]) => {
+      list.sort(byTime);
+      const customer = list.find((m) => m.inbound)?.sender || null;
+      return thread({ id, name: customer, phone: customer, channelId: list[0].channelId }, list);
+    })
+    .sort((a, b) => byTime(b, a));
+}
+
+/** A transcript from `conversations list` as the same thread shape. */
+export function fromConversation(c) {
+  const known = [displayName(c.contact), c.contact?.firstName, c.contact?.phone].filter(Boolean);
+  const list = (c.messages || [])
+    .map((m) => ({ ...m, inbound: isPhone(m.sender) || known.includes(m.sender) }))
+    .sort(byTime);
+  return thread(
+    {
+      id: c.id,
+      name: displayName(c.contact),
+      phone: c.contact?.phone || null,
+      channelId: c.channel?.id || null,
+      channelName: c.channel?.name || null,
+      type: c.type,
+    },
+    list,
+  );
+}
+
+const thread = (fields, messages) => ({
+  ...fields,
+  name: fields.name || `Thread ${fields.id}`,
+  at: messages.at(-1)?.at || null,
+  messages,
+});
+
 /** The searchable text for a row, used by list filtering. */
-export const searchText = (row) => row.cells.join(' ').toLowerCase();
+export const searchText = (row) => [...row.cells, row.record.phone].join(' ').toLowerCase();
 
 /** One detail row: a label, its value, and a link where the value has one. */
 const pair = (key, v) => [label(key), value(v, key), LINKS[key]?.(v)];
@@ -154,15 +200,6 @@ export function detailLines(record) {
       continue;
     }
     lines.push(pair(key, v));
-  }
-  if (Array.isArray(record.messages)) {
-    lines.push('', `› Transcript · ${record.messages.length} messages`);
-    for (const m of record.messages)
-      lines.push(
-        `${m.sender || 'Unknown'}  ·  ${m.at ? shortTime(m.at) : ''}`,
-        String(m.text ?? ''),
-        '',
-      );
   }
   return lines;
 }

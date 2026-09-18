@@ -6,7 +6,8 @@ import { wrapWithCaret, length } from './editor.js';
 import { MESSAGE_LIMIT } from '../validate.js';
 import { logos, logoById } from './logo.js';
 import { navigation } from './layout.js';
-import { detailLines } from './records.js';
+import { detailLines, ago } from './records.js';
+import { mix } from './screen.js';
 
 const muted = (s, x, y, w, text) => s.text(x, y, w, text, s.theme.muted);
 
@@ -154,13 +155,7 @@ export const panels = {
     const rows = visibleRows(panel);
     const visible = Math.max(1, height - 3);
     const start = scrollWindow(panel.index, rows.length, visible);
-    const columnIndexes =
-      inner.w >= 70
-        ? panel.columns.map((_, index) => index)
-        : panel.recordKind === 'messages' && panel.columns.length >= 3
-          ? [1, 2]
-          : panel.columns.slice(0, 2).map((_, index) => index);
-    const columns = columnIndexes.map((index) => panel.columns[index]);
+    const columns = fitColumns(panel.columns, inner.w);
     const widths = columnWidths(columns, inner.w);
     // Headers line up with cell text, which sits after the two-column marker.
     s.text(
@@ -172,9 +167,8 @@ export const panels = {
     );
     if (!rows.length) muted(s, inner.x + 2, top + 2, inner.w - 2, 'Nothing matches this filter.');
     rows.slice(start, start + visible).forEach((r, i) => {
-      const text = columnIndexes
-        .map((index) => r.cells[index])
-        .map((cell, n) => clipWithEllipsis(cell, widths[n]).padEnd(widths[n]))
+      const text = columns
+        .map((_, n) => clipWithEllipsis(r.cells[n], widths[n]).padEnd(widths[n]))
         .join(' ');
       row(s, inner, top + 2 + i, start + i === panel.index, text);
     });
@@ -193,7 +187,18 @@ export const panels = {
       ? ` ${start + 1}–${Math.min(start + visible, rows.length)} of ${rows.length} `
       : ' no matches ';
     s.text(table.x + table.w - 2 - range.length, bottom, range.length, range, s.theme.muted);
-    if (l.detail) detail(s, l, top, height, rows[panel.index]);
+    if (l.detail && panel.recordKind === 'threads')
+      conversation(s, l, top, height, rows[panel.index]);
+    else if (l.detail) detail(s, l, top, height, rows[panel.index]);
+  },
+
+  transcript(s, l, panel) {
+    heading(s, l, panel.thread.name, panel.subtitle);
+    const rows = bubbles(panel.thread, l.w - 2);
+    const visible = Math.max(1, l.h - 4);
+    const offset = Math.min(panel.scroll, Math.max(0, rows.length - visible));
+    drawBubbles(s, l.x + 1, l.top + 3, l.w - 2, rows.slice(offset, offset + visible));
+    scrollbar(s, l.x + l.w, l.top + 3, visible, offset, visible, rows.length);
   },
 
   preview(s, l, panel) {
@@ -295,6 +300,48 @@ function detail(s, l, top, height, selected) {
     s.text(x + 2, top + height - 1, w - 4, ' Enter for full details ', s.theme.muted);
 }
 
+/** The selected thread beside the list, scrolled to its latest message. */
+function conversation(s, l, top, height, selected) {
+  const { x, w } = l.detail;
+  s.box(x, top, w, height, 'Conversation');
+  if (!selected) return;
+  s.text(x + 2, top + 1, w - 4, selected.title, s.theme.ink, s.theme.bg, true);
+  const rows = bubbles(selected.record, w - 4);
+  const room = Math.max(0, height - 4);
+  drawBubbles(s, x + 2, top + 3, w - 4, rows.slice(Math.max(0, rows.length - room)));
+}
+
+/**
+ * Chat layout: customer messages on the left, your side on the right, each
+ * under a faint sender and time. Returns rows so callers can scroll them.
+ */
+export function bubbles(thread, width) {
+  const widest = Math.max(12, Math.floor(width * 0.72));
+  const rows = [];
+  for (const m of thread.messages) {
+    const lines = wrap(String(m.text ?? ''), widest - 2);
+    const size = Math.max(...lines.map(stringWidth)) + 2;
+    const meta = [m.sender || 'Unknown', m.at ? ago(m.at) : ''].filter(Boolean).join(' · ');
+    const align = (w) => (m.inbound ? 0 : Math.max(0, width - w));
+    rows.push({ x: align(stringWidth(meta)), text: meta, meta: true });
+    for (const text of lines) rows.push({ x: align(size), w: size, text, inbound: m.inbound });
+    rows.push({ x: 0, text: '' });
+  }
+  return rows;
+}
+
+function drawBubbles(s, x, y, w, rows) {
+  const theirs = s.theme.selected;
+  const ours = mix(s.theme.bg, s.theme.orange, 0.3);
+  rows.forEach((r, i) => {
+    if (r.meta) return s.text(x + r.x, y + i, w - r.x, r.text, s.theme.faint);
+    if (r.w == null) return;
+    const bg = r.inbound ? theirs : ours;
+    s.fill(x + r.x, y + i, r.w, 1, bg);
+    s.text(x + r.x + 1, y + i, r.w - 2, r.text, s.theme.ink, bg);
+  });
+}
+
 const OUTCOMES = {
   accepted: 'Accepted by Alive5. Handset delivery is not yet confirmed.',
   unknown: 'The send result is unknown. Your draft is kept; check Alive5 before retrying.',
@@ -345,6 +392,12 @@ function drawField(s, l, panel, field, index, y, height) {
       s.put(l.x + 2 + Math.min(caret.column, l.w - 5), row, '▏', s.theme.orange, bg);
     if (active && s.themeName === 'terminal') s.reverse(l.x, row, l.w);
   }
+}
+
+/** Leading columns that fit at their preferred width; never fewer than two. */
+function fitColumns(columns, width) {
+  let used = 4;
+  return columns.filter((c, i) => (used += c.width + 1) <= width || i < 2);
 }
 
 /** Column widths shrink proportionally so a narrow terminal still shows every column. */

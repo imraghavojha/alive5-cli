@@ -7,7 +7,7 @@ import { config, saveConfig, saveAppearance, appearanceDefaults } from '../stora
 import { validateKey, dateRange, MESSAGE_LIMIT } from '../validate.js';
 import { displayName } from '../normalize.js';
 import { sanitize } from './text.js';
-import { visibleRows, layoutLines } from './panels.js';
+import { visibleRows, layoutLines, bubbles } from './panels.js';
 import { drawLogo, logos } from './logo.js';
 import { view, SHORTCUTS } from './view.js';
 import { layout, navigation, showsBanner } from './layout.js';
@@ -142,10 +142,19 @@ export class Workspace {
       filter: '',
       filtering: false,
       next,
-      subtitle: [`${data.length} records`, page, next ? 'n next page' : '']
+      subtitle: [meta.summary || `${data.length} records`, page, next ? 'n next page' : '']
         .filter(Boolean)
         .join('  ·  '),
     });
+  }
+
+  /** One conversation, opened at its latest message. */
+  transcript(thread) {
+    const count = `${thread.messages.length} message${thread.messages.length === 1 ? '' : 's'}`;
+    const subtitle = [thread.phone !== thread.name && thread.phone, count, thread.channelName]
+      .filter(Boolean)
+      .join('  ·  ');
+    this.show({ kind: 'transcript', thread, subtitle, scroll: Infinity });
   }
 
   help() {
@@ -364,6 +373,9 @@ export class Workspace {
       panel.scroll = Math.max(0, Math.min(panel.scroll, count - Math.max(1, l.h - 4)));
     } else if (panel.kind === 'help') {
       panel.scroll = Math.max(0, Math.min(panel.scroll, panel.lines.length - Math.max(1, l.h - 4)));
+    } else if (panel.kind === 'transcript') {
+      const count = bubbles(panel.thread, l.w - 2).length;
+      panel.scroll = Math.max(0, Math.min(panel.scroll, count - Math.max(1, l.h - 4)));
     } else if (panel.kind === 'list') {
       panel.index = Math.max(0, Math.min(panel.index, visibleRows(panel).length - 1));
     }

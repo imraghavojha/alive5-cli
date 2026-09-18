@@ -21,6 +21,7 @@ const HINTS = {
   preview: ['Enter send · Esc edit · ↑↓ scroll', 'Enter send · Esc edit'],
   reader: ['↑↓ scroll · PgUp/PgDn · Esc back · q quit', '↑↓ scroll · Esc back · q'],
   list: ['↑↓ select · Enter open · / filter · ? help · Esc back', '↑↓ · Enter · / filter · Esc'],
+  transcript: ['↑↓ scroll · r reply · ? help · Esc back', '↑↓ · r reply · Esc'],
   select: ['↑↓ select · Enter open · Esc back', '↑↓ · Enter · Esc back'],
   help: ['↑↓ scroll · Esc close', '↑↓ · Esc close'],
 };
@@ -43,12 +44,9 @@ function secondary(state, panel, narrow) {
   }
   if (panel.kind === 'list')
     return [
+      panel.recordKind === 'threads' ? 'r reply' : '',
+      panel.recordKind === 'contacts' ? (narrow ? 'm message' : 'm message this contact') : '',
       narrow ? 'y copy' : 'y copy value',
-      ['contacts', 'conversations'].includes(panel.recordKind)
-        ? narrow
-          ? 'm message'
-          : 'm message this contact'
-        : '',
       panel.next ? 'n next page' : '',
     ]
       .filter(Boolean)
@@ -156,6 +154,7 @@ export const SHORTCUTS = [
   ['n', 'Load the next page'],
   ['y', 'Copy the highlighted value, if your terminal allows it'],
   ['m', 'Compose a message to the highlighted contact'],
+  ['r', 'Reply to the highlighted conversation'],
   ['', ''],
   ['Editing', ''],
   ['← →', 'Move the caret'],

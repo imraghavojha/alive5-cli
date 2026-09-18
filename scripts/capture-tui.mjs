@@ -206,12 +206,17 @@ await sleep(250);
 await capture('06-shortcuts');
 await home();
 
-// Recent messages, as a table rather than a record dump.
+// Recent messages as conversations, then one transcript.
 pty.write('2\r');
 await sleep(200);
 pty.write('\r');
 await sleep(300);
 await capture('07-messages');
+pty.write('\r');
+await sleep(200);
+await capture('08-transcript');
+pty.write('\x1b');
+await sleep(100);
 pty.write('\x1b');
 await sleep(100);
 const idleStart = bytes;

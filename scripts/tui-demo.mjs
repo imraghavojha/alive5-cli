@@ -13,15 +13,32 @@ const contacts = Array.from({ length: 30 }, (_, i) => ({
   company: COMPANY[i % COMPANY.length],
   tags: i % 3 ? ['Follow up'] : [],
 }));
-const transcript = [
-  {
-    sender: 'Avery',
-    at: '2026-09-13T10:30:00Z',
-    text: 'Your appointment is confirmed for tomorrow at 10.',
-  },
-  { sender: '+15555550101', at: '2026-09-13T10:32:00Z', text: 'Perfect, thank you. See you then!' },
-  { sender: 'Avery', at: '2026-09-13T10:33:00Z', text: 'Reply STOP at any time to opt out.' },
-];
+// Timestamps are relative to now so lists read "5m ago" rather than a stale date.
+const minutesAgo = (m) => new Date(Date.now() - m * 60000).toISOString();
+const THREADS = [
+  [
+    ['+15555550101', 42, 'Hi! Is my cleaning still on for tomorrow?'],
+    ['Morgan Lee', 40, 'Yes, you are booked for 10:00. Reply C to confirm.'],
+    ['+15555550101', 38, 'C — see you then, thank you!'],
+  ],
+  [
+    ['Morgan Lee', 190, 'Your order #2291 is ready for pickup at the front desk.'],
+    ['+15555550104', 184, 'Great, can my partner pick it up instead?'],
+    ['Morgan Lee', 181, 'Of course. They just need the order number.'],
+  ],
+  [
+    ['+15555550108', 1500, 'Do you have any openings on Saturday morning?'],
+    ['Morgan Lee', 1490, 'We have 9:30 and 11:00. Which works best?'],
+  ],
+].map((messages, i) =>
+  messages.map(([sender, minutes, text]) => ({
+    threadId: `thread-${i + 1}`,
+    channelId: 'demo-channel',
+    sender,
+    at: minutesAgo(minutes),
+    text,
+  })),
+);
 await launchTui({
   account: { org_name: 'Studio workspace' },
   settings: {
@@ -36,7 +53,7 @@ await launchTui({
       {
         id: 'demo-channel',
         name: '+15555550100',
-        users: [{ id: 'demo-user', name: 'Avery', role: 'admin' }],
+        users: [{ id: 'demo-user', name: 'Morgan Lee', role: 'admin' }],
       },
     ],
     contacts: async () => ({ data: contacts, meta: { page: 1, totalPages: 1, nextPage: null } }),
@@ -44,23 +61,18 @@ await launchTui({
       { id: 'tag-1', name: 'Follow up' },
       { id: 'tag-2', name: 'Customer care' },
     ],
-    messages: async () =>
-      Array.from({ length: 9 }, (_, i) => ({
-        threadId: `thread-${(i % 3) + 1}`,
-        channelId: 'demo-channel',
-        ...transcript[i % transcript.length],
-      })),
+    messages: async () => THREADS.flat(),
     conversations: async () => ({
-      data: contacts.slice(0, 6).map((c, i) => ({
+      data: THREADS.map((messages, i) => ({
         id: `thread-${i + 1}`,
         type: 'sms',
         channel: { id: 'demo-channel', name: 'Front desk' },
         assignedTo: 'demo-user',
-        startedAt: '2026-09-13T10:30:00Z',
+        startedAt: messages[0].at,
         endedAt: null,
-        contact: c,
-        tags: c.tags,
-        messages: transcript,
+        contact: contacts[[1, 4, 8][i]],
+        tags: [],
+        messages: messages.map(({ sender, at, text }) => ({ sender, at, text })),
       })),
       meta: { page: 1, totalPages: 1, nextPage: null },
     }),

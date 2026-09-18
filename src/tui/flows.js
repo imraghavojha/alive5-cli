@@ -132,7 +132,8 @@ function actions(app) {
     messages: () =>
       dates(app, 'Read recent messages', async (v, current) => {
         const rows = await app.services.messages(v);
-        if (current()) app.list('Recent messages', 'messages', rows);
+        const summary = `${rows.length} messages`;
+        if (current()) app.list('Recent messages', 'threads', records.threads(rows), { summary });
       }),
     history: () =>
       app.select(
@@ -147,8 +148,11 @@ function actions(app) {
             paged(
               app,
               'Conversations',
-              'conversations',
-              (page) => app.services.conversations(type, { ...v, page }),
+              'threads',
+              async (page) => {
+                const result = await app.services.conversations(type, { ...v, page });
+                return { ...result, data: result.data.map(records.fromConversation) };
+              },
               current,
             ),
           ),
@@ -295,6 +299,7 @@ export async function sendPreview(app) {
 }
 
 export function openRecord(app, record) {
+  if (Array.isArray(record.messages)) return app.transcript(record);
   app.reader(
     displayName(record) || 'Record',
     records.detailLines(record),
