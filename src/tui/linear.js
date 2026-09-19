@@ -4,7 +4,7 @@
 import { createInterface } from 'node:readline';
 import { Workspace } from './workspace.js';
 import { navigation } from './layout.js';
-import { visibleRows } from './panels.js';
+import { visibleRows, visibleOptions } from './panels.js';
 import { sanitize } from './text.js';
 import { lineText } from './records.js';
 
@@ -21,7 +21,9 @@ export function describeLinear(state) {
     );
   else if (panel.kind === 'select')
     lines.push(
-      ...panel.options.map((item, i) => `${i + 1}. ${item.label}`),
+      ...visibleOptions(panel).map(({ option }, i) =>
+        [`${i + 1}. ${option.label}`, option.detail].filter(Boolean).join(' — '),
+      ),
       'Enter a number to select.',
     );
   else if (panel.kind === 'list') {
@@ -35,7 +37,9 @@ export function describeLinear(state) {
     if (field.secret) lines.push('Current value: hidden');
     else if (panel.values[field.key]) lines.push(`Current value: ${panel.values[field.key]}`);
     lines.push(
-      'Type a value, or :next to keep the current value. Use \\n for message line breaks.',
+      field.pick && !field.editable
+        ? 'Type words to search the list, or :next to keep the current value.'
+        : 'Type a value, or :next to keep the current value. Use \\n for message line breaks.',
     );
   } else if (panel.kind === 'preview') {
     lines.push(panel.outcome ? `Send outcome: ${panel.outcome}` : 'Nothing has been sent.');
@@ -85,6 +89,14 @@ export async function launchLinear({
       else if (app.state.panel.kind === 'form') {
         const panel = app.state.panel;
         const field = panel.fields[panel.index];
+        if (field.pick && !field.editable) {
+          // Chosen-only fields accept :next to keep a value, or words to search.
+          if (line === ':next' && panel.values[field.key]) await app.submitForm();
+          else await field.pick(line === ':next' ? '' : line);
+          say(output, describeLinear(app.state));
+          output.write('> ');
+          continue;
+        }
         if (field.secret) {
           say(
             output,
@@ -116,9 +128,9 @@ export async function launchLinear({
         if (panel.kind === 'home' && navigation[number]) {
           app.state.nav = number;
           await app.activate();
-        } else if (panel.kind === 'select' && panel.options[number]) {
+        } else if (panel.kind === 'select' && visibleOptions(panel)[number]) {
           panel.index = number;
-          await app.choose(panel.options[number].value);
+          await app.choose(visibleOptions(panel)[number].option.value);
         } else if (panel.kind === 'list' && visibleRows(panel)[number]) {
           panel.index = number;
           app.openRecord(visibleRows(panel)[number].record);

@@ -65,3 +65,20 @@ export function wrap(text, width) {
 }
 
 export { stringWidth };
+
+/**
+ * Fuzzy subsequence match. Returns the grapheme positions of each query
+ * character in `text`, or null when the query does not match.
+ */
+export function fuzzy(query, text) {
+  const chars = graphemes(sanitize(text).toLowerCase());
+  const positions = [];
+  let from = 0;
+  for (const ch of graphemes(query.toLowerCase().replace(/\s+/g, ''))) {
+    const at = chars.indexOf(ch, from);
+    if (at < 0) return null;
+    positions.push(at);
+    from = at + 1;
+  }
+  return positions;
+}

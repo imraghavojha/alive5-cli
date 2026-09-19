@@ -5,7 +5,7 @@
 
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { config, saveConfig } from '../storage.js';
+import { config, saveConfig, recentSender, saveRecentSender } from '../storage.js';
 import { validateKey, dateRange } from '../validate.js';
 import { displayName } from '../normalize.js';
 import { navigation } from './layout.js';
@@ -128,7 +128,7 @@ function actions(app) {
     appearance: () => app.show({ kind: 'appearance', index: 0 }, { remember: false }),
     agents: () =>
       app.reader('Built for your agent', AGENT_GUIDE, 'Quiet commands. Predictable JSON.'),
-    send: () => chooseSender(app, (context) => compose(app, context)),
+    send: () => startCompose(app),
     messages: () =>
       dates(app, 'Read recent messages', async (v, current) => {
         const rows = await app.services.messages(v);
@@ -203,52 +203,170 @@ export async function paged(app, title, kind, fetchPage, current, page = 1) {
   );
 }
 
-/** Channel then teammate: both are consequential, so both are shown in review. */
-export function chooseSender(app, then) {
-  return app.run('Loading channels', async (current) => {
-    const channels = await app.services.channels();
+const isPhone = (v) => /^\+\d+$/.test(v || '');
+
+/** Sets a form value and parks its caret at the end. */
+function set(panel, key, value) {
+  panel.values[key] = value || '';
+  panel.carets[key] = [...panel.values[key]].length;
+}
+
+/** Focus goes to the first field still empty, or the message when all are filled. */
+const firstEmpty = (panel) => {
+  const index = panel.fields.findIndex((f) => !panel.values[f.key]?.trim());
+  return index < 0 ? panel.fields.length - 1 : index;
+};
+
+function setChannel(panel, channel) {
+  const previous = panel.picked.channel;
+  panel.picked.channel = channel;
+  set(panel, 'channel', channel.name || channel.id);
+  if (!channel.users.some((u) => u.id === panel.picked.user?.id))
+    setUser(panel, channel.users.length === 1 ? channel.users[0] : null);
+  // A channel labelled with its number supplies From, unless one was typed.
+  const from = panel.values.from;
+  if (!from || from === previous?.name)
+    set(panel, 'from', isPhone(channel.name) ? channel.name : '');
+}
+
+function setUser(panel, user) {
+  panel.picked.user = user;
+  set(panel, 'user', user ? user.name || user.id : '');
+}
+
+/** Opens a searchable list; choosing returns to the form with the value filled. */
+function pick(app, panel, title, options, apply, subtitle, query, current) {
+  app.select(
+    title,
+    options,
+    (value) => {
+      app.back();
+      apply(value);
+      panel.index = firstEmpty(panel);
+    },
+    subtitle,
+    {
+      search: true,
+      query,
+      index: Math.max(
+        0,
+        options.findIndex((o) => o.value === current),
+      ),
+    },
+  );
+}
+
+const plural = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+
+function pickChannel(app, panel, query) {
+  pick(
+    app,
+    panel,
+    'Choose a sending channel',
+    panel.picked.channels.map((ch) => ({
+      label: ch.name || ch.id,
+      detail: plural(ch.users.length, 'teammate'),
+      value: ch,
+    })),
+    (channel) => setChannel(panel, channel),
+    'The channel decides which number and inbox the text belongs to.',
+    query,
+    panel.picked.channel,
+  );
+}
+
+function pickUser(app, panel, query) {
+  const users = panel.picked.channel?.users;
+  if (!users) return pickChannel(app, panel, '');
+  pick(
+    app,
+    panel,
+    'Send as',
+    users.map((u) => ({ label: u.name || u.id, detail: u.role || '', value: u })),
+    (user) => setUser(panel, user),
+    'This teammate will own the message.',
+    query,
+    panel.picked.user,
+  );
+}
+
+function pickContact(app, panel, query) {
+  return app.run('Loading contacts', async (current) => {
+    const result = await app.services.contacts({ page: 1, limit: 100 });
+    const people = (Array.isArray(result) ? result : result.data).filter((c) => c.phone);
     if (!current()) return;
-    app.select(
-      'Choose a sending channel',
-      channels.map((ch) => ({ label: ch.name, value: ch })),
-      (channel) =>
-        app.select(
-          'Send as',
-          channel.users.map((u) => ({ label: u.name || u.id, value: u })),
-          (user) =>
-            then({
-              channel: channel.id,
-              channelName: channel.name,
-              user: user.id,
-              userName: user.name || user.id,
-              from: /^\+\d+$/.test(channel.name) ? channel.name : '',
-            }),
-          'This teammate will own the message.',
-        ),
+    if (!people.length) throw new Error('No contacts on the first page have a mobile number.');
+    pick(
+      app,
+      panel,
+      'Find a contact',
+      people.map((c) => ({ label: displayName(c), detail: c.phone, value: c })),
+      (contact) => set(panel, 'to', contact.phone),
+      `Searching the first ${plural(people.length, 'contact')} with a mobile number.`,
+      query,
     );
   });
 }
 
-export function compose(app, context, initial = {}) {
+/**
+ * Opens the composer with the last sender, or the only choice, already picked.
+ * `initial.channel` preselects a thread's channel when replying.
+ */
+export function startCompose(app, initial = {}) {
+  return app.run('Loading channels', async (current) => {
+    const [channels, recent] = await Promise.all([app.services.channels(), recentSender()]);
+    if (!current()) return;
+    const channel =
+      channels.find((c) => c.id === (initial.channel || recent.channel)) ||
+      (channels.length === 1 ? channels[0] : null);
+    const user =
+      channel?.users.find((u) => u.id === recent.user) ||
+      (channel?.users.length === 1 ? channel.users[0] : null);
+    compose(app, { channels, channel, user }, { to: initial.to });
+  });
+}
+
+/** Channel and teammate are fields like the others, so changing one is one step. */
+export function compose(app, { channels = [], channel = null, user = null } = {}, initial = {}) {
+  let panel;
   app.form(
     'Compose a text',
     [
+      { key: 'channel', label: 'Channel', pick: (q) => pickChannel(app, panel, q) },
+      { key: 'user', label: 'Send as', pick: (q) => pickUser(app, panel, q) },
       { key: 'from', label: 'From · your Alive5 number', placeholder: '+15555550100' },
-      { key: 'to', label: 'To · include country code', placeholder: '+15555550101' },
+      {
+        key: 'to',
+        label: 'To · a number, or Enter to find a contact',
+        placeholder: '+15555550101',
+        pick: (q) => pickContact(app, panel, q),
+        editable: true,
+      },
       { key: 'message', label: 'Message', multiline: true, placeholder: 'Write your message' },
     ],
     async (values, current) => {
-      const form = { ...context, ...values };
+      const form = {
+        channel: panel.picked.channel?.id,
+        user: panel.picked.user?.id,
+        from: values.from,
+        to: values.to,
+        message: values.message,
+      };
       (app.services.sendForm || api.sendForm)(form);
-      if (current()) app.show(previewPanel(app, form, context));
+      if (current()) app.show(previewPanel(app, form, panel.picked));
     },
     'Review before sending.',
-    { ...context, ...initial },
+    initial,
   );
+  panel = app.state.panel;
+  panel.picked = { channels, channel: null, user: null };
+  if (channel) setChannel(panel, channel);
+  if (user) setUser(panel, user);
+  panel.index = firstEmpty(panel);
 }
 
 /** Review shows every consequential choice, not just the message. */
-export function previewPanel(app, form, context) {
+export function previewPanel(app, form, picked) {
   return {
     kind: 'preview',
     form,
@@ -256,8 +374,8 @@ export function previewPanel(app, form, context) {
     outcome: null,
     context: [
       ['Workspace', app.state.account?.org_name || '—'],
-      ['Channel', context.channelName || form.channel || '—'],
-      ['Send as', context.userName || form.user || '—'],
+      ['Channel', picked.channel?.name || form.channel || '—'],
+      ['Send as', picked.user?.name || form.user || '—'],
       ['From', form.from],
       ['To', form.to],
     ],
@@ -277,6 +395,8 @@ export async function sendPreview(app) {
       if (!current()) return;
       panel.outcome = 'accepted';
       panel.result = result;
+      // Remembered only after Alive5 accepts, and never at the cost of the result.
+      await saveRecentSender(panel.form).catch(() => {});
       app.result(
         'Message accepted',
         {
@@ -315,5 +435,5 @@ export function messageRecord(app, record) {
     app.changed();
     return;
   }
-  return chooseSender(app, (context) => compose(app, context, { to: phone }));
+  return startCompose(app, { to: phone, channel: record.channelId });
 }

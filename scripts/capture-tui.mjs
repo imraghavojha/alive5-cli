@@ -154,17 +154,29 @@ if (process.env.CAPTURE_LOGOS) {
   }
 }
 
-// Compose: channel, teammate, then the message itself.
+// Compose: pick the channel, the teammate, then find a contact by name.
 pty.write('\x1b');
 await sleep(150);
 pty.write('1\r');
+await sleep(200);
+pty.write('\r');
+await sleep(200);
+await capture('03-channel-picker');
+pty.write('\r');
 await sleep(150);
 pty.write('\r');
 await sleep(150);
 pty.write('\r');
 await sleep(200);
 await capture('03-compose');
-pty.write('\r+15555550101\rYour appointment is confirmed for tomorrow at 10. See you then!');
+pty.write('\r');
+await sleep(200);
+pty.write('jor');
+await sleep(200);
+await capture('03a-contact-picker');
+pty.write('\r');
+await sleep(150);
+pty.write('Your appointment is confirmed for tomorrow at 10. See you then!');
 await sleep(200);
 await capture('03b-message');
 // Caret editing: move back into the sentence and correct a word in place.

@@ -107,3 +107,11 @@ export async function saveAppearance(settings) {
     Object.fromEntries(Object.keys(appearanceDefaults).map((k) => [k, settings[k]])),
   );
 }
+
+// The channel and teammate of the last accepted send, so the next compose
+// starts from them. IDs only; no message content is stored.
+const RECENT = 'recent.json';
+
+export const recentSender = () => readJson(RECENT, {}).catch(() => ({}));
+
+export const saveRecentSender = ({ channel, user }) => writeJson(RECENT, { channel, user });

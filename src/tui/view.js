@@ -22,7 +22,7 @@ const HINTS = {
   reader: ['↑↓ scroll · PgUp/PgDn · Esc back · q quit', '↑↓ scroll · Esc back · q'],
   list: ['↑↓ select · Enter open · / filter · ? help · Esc back', '↑↓ · Enter · / filter · Esc'],
   transcript: ['↑↓ scroll · r reply · ? help · Esc back', '↑↓ · r reply · Esc'],
-  select: ['↑↓ select · Enter open · Esc back', '↑↓ · Enter · Esc back'],
+  select: ['↑↓ select · Enter choose · Esc back', '↑↓ · Enter · Esc back'],
   help: ['↑↓ scroll · Esc close', '↑↓ · Esc close'],
 };
 
@@ -38,6 +38,8 @@ function secondary(state, panel, narrow) {
   if (panel.kind === 'form') {
     const field = panel.fields[panel.index];
     const editing = 'Home/End · Ctrl+U clear · Ctrl+W word';
+    if (field.pick && !field.editable) return 'Ctrl+F change · or type to search';
+    if (field.pick) return narrow ? 'Ctrl+F find contact' : `Ctrl+F find contact · ${editing}`;
     if (narrow)
       return field.multiline ? 'Ctrl+J newline · Ctrl+U clear' : 'Home/End · Ctrl+U clear';
     return field.multiline ? `Ctrl+J new line · ${editing}` : editing;
@@ -163,6 +165,7 @@ export const SHORTCUTS = [
   ['Ctrl+J', 'New line in a message'],
   ['Ctrl+W', 'Delete the previous word'],
   ['Ctrl+U', 'Clear the field'],
+  ['Ctrl+F', 'Choose a channel, teammate, or contact from a list'],
   ['', ''],
   ['Appearance', ''],
   ['1–8', 'Choose a wordmark'],

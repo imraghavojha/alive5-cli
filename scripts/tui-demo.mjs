@@ -1,13 +1,29 @@
 // Offline UI fixture. Never calls the network or reads Alive5 credentials.
-import { launchTui } from '../src/tui/runtime.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+// Local state such as the last sender goes to a scratch directory, not real config.
+process.env.ALIVE5_CONFIG_DIR = mkdtempSync(join(tmpdir(), 'alive5-demo-'));
+const { launchTui } = await import('../src/tui/runtime.js');
 import { sendForm } from '../src/api.js';
-const FIRST = ['Avery', 'Sam', 'Jordan', 'Riley', 'Quinn', 'Noor'];
-const LAST = ['Stone', 'Barros', 'Reed', 'Okafor', 'Lindqvist', 'Haddad'];
+const FIRST = [
+  'Avery',
+  'Sam',
+  'Jordan',
+  'Riley',
+  'Quinn',
+  'Noor',
+  'Mateo',
+  'Hana',
+  'Ezra',
+  'Leila',
+];
+const LAST = ['Stone', 'Barros', 'Reed', 'Okafor', 'Lindqvist', 'Haddad', 'Novak'];
 const COMPANY = ['Northwind Studio', 'Rivet & Co', 'Lumen Clinic', 'Harbour Bakery'];
 const contacts = Array.from({ length: 30 }, (_, i) => ({
   id: `contact-${i + 1}`,
   firstName: FIRST[i % FIRST.length],
-  lastName: LAST[(i * 3) % LAST.length],
+  lastName: LAST[i % LAST.length],
   phone: `+1555555${String(100 + i).padStart(4, '0')}`,
   email: `${FIRST[i % FIRST.length].toLowerCase()}@example.test`,
   company: COMPANY[i % COMPANY.length],
@@ -53,7 +69,15 @@ await launchTui({
       {
         id: 'demo-channel',
         name: '+15555550100',
-        users: [{ id: 'demo-user', name: 'Morgan Lee', role: 'admin' }],
+        users: [
+          { id: 'demo-user', name: 'Morgan Lee', role: 'admin' },
+          { id: 'demo-user-2', name: 'Priya Shah', role: 'agent' },
+        ],
+      },
+      {
+        id: 'demo-channel-2',
+        name: 'Front desk',
+        users: [{ id: 'demo-user-3', name: 'Sam Ortiz' }],
       },
     ],
     contacts: async () => ({ data: contacts, meta: { page: 1, totalPages: 1, nextPage: null } }),

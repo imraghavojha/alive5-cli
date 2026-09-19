@@ -1,7 +1,7 @@
 // One draw function per panel kind. Each receives the panel, the screen, and the
 // resolved layout, and owns nothing outside its content area.
 
-import { wrap, clipWithEllipsis, stringWidth } from './text.js';
+import { wrap, clipWithEllipsis, stringWidth, fuzzy, graphemes } from './text.js';
 import { wrapWithCaret, length } from './editor.js';
 import { MESSAGE_LIMIT } from '../validate.js';
 import { logos, logoById } from './logo.js';
@@ -109,13 +109,40 @@ export const panels = {
 
   select(s, l, panel) {
     heading(s, l, panel.title, panel.subtitle || 'Choose an option');
-    const visible = Math.max(1, l.h - 4);
-    const start = scrollWindow(panel.index, panel.options.length, visible);
-    panel.options
-      .slice(start, start + visible)
-      .forEach((item, i) => row(s, l, l.top + 3 + i, start + i === panel.index, item.label));
-    scrollbar(s, l.x + l.w, l.top + 3, visible, start, visible, panel.options.length);
-    scrollNote(s, l, start, visible, panel.options.length);
+    const options = visibleOptions(panel);
+    if (panel.search) {
+      s.text(l.x, l.top + 2, 2, '›', s.theme.orange);
+      if (panel.query) s.text(l.x + 2, l.top + 2, l.w - 3, panel.query + '▏', s.theme.ink);
+      else muted(s, l.x + 2, l.top + 2, l.w - 3, 'Type to search');
+      if (!options.length) muted(s, l.x + 2, l.top + 4, l.w - 2, 'Nothing matches.');
+    }
+    const first = l.top + (panel.search ? 4 : 3);
+    const visible = Math.max(1, l.bottom - 1 - first);
+    const start = scrollWindow(panel.index, options.length, visible);
+    options.slice(start, start + visible).forEach(({ option, at }, i) => {
+      const y = first + i;
+      const active = start + i === panel.index;
+      row(s, l, y, active, option.label);
+      const bg = active ? s.theme.selected : s.theme.bg;
+      // Matched characters are highlighted, fzf-style, so the ranking reads.
+      const chars = graphemes(option.label);
+      for (const n of at || [])
+        if (n < chars.length)
+          s.put(
+            l.x + 3 + stringWidth(chars.slice(0, n).join('')),
+            y,
+            chars[n],
+            s.theme.orange,
+            bg,
+            true,
+          );
+      if (option.detail) {
+        const w = Math.min(28, Math.floor(l.w / 2));
+        s.text(l.x + l.w - w - 1, y, w, clipWithEllipsis(option.detail, w), s.theme.faint, bg);
+      }
+    });
+    scrollbar(s, l.x + l.w, first, visible, start, visible, options.length);
+    scrollNote(s, l, start, visible, options.length);
   },
 
   form(s, l, panel) {
@@ -386,9 +413,13 @@ function drawField(s, l, panel, field, index, y, height) {
     const bg = active ? s.theme.selected : s.theme.panel;
     s.fill(l.x, row, l.w, 1, bg);
     const text = lines[offset + n];
-    const placeholder = !value && n === 0 ? field.placeholder || '' : '';
+    const chosen = field.pick && !field.editable;
+    const placeholder =
+      !value && n === 0 ? field.placeholder || (chosen ? 'Enter to choose' : '') : '';
     s.text(l.x + 2, row, l.w - 4, text ?? placeholder, value ? s.theme.ink : s.theme.faint, bg);
-    if (active && offset + n === caret.row)
+    // Chosen-only fields show a list marker instead of a caret.
+    if (chosen) s.put(l.x + l.w - 3, row, '▾', active ? s.theme.orange : s.theme.faint, bg);
+    else if (active && offset + n === caret.row)
       s.put(l.x + 2 + Math.min(caret.column, l.w - 5), row, '▏', s.theme.orange, bg);
     if (active && s.themeName === 'terminal') s.reverse(l.x, row, l.w);
   }
@@ -409,6 +440,20 @@ function columnWidths(columns, width) {
   const scale = available / wanted;
   return columns.map((c) => Math.max(6, Math.floor(c.width * scale)));
 }
+
+/**
+ * A searchable selection's options, best match first. Earlier and tighter
+ * matches rank higher; without a query the original order stands.
+ */
+export function visibleOptions(panel) {
+  if (!panel.query) return panel.options.map((option) => ({ option, at: null }));
+  return panel.options
+    .map((option) => ({ option, at: fuzzy(panel.query, `${option.label} ${option.detail || ''}`) }))
+    .filter((m) => m.at)
+    .sort((a, b) => spread(a.at) - spread(b.at));
+}
+
+const spread = (at) => at.at(-1) - at[0] + at[0] / 100;
 
 export const visibleRows = (panel) =>
   panel.filter

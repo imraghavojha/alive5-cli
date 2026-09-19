@@ -16,6 +16,10 @@ import { sendForm } from '../src/api.js';
 import { isoDay } from '../src/tui/flows.js';
 import { threads } from '../src/tui/records.js';
 import { preparePty } from '../scripts/pty-helper.mjs';
+// Workspaces remember the last sender on disk; keep that away from real config.
+process.env.ALIVE5_CONFIG_DIR = await mkdtemp(join(tmpdir(), 'alive5-tui-'));
+const channel = { id: 'c', name: '+15555550100', users: [{ id: 'u', name: 'Avery' }] };
+const sender = { channels: [channel], channel, user: channel.users[0] };
 const mock = {
   channels: async () => [{ id: 'c', name: '+15555550100', users: [{ id: 'u', name: 'Avery' }] }],
   sendForm,
@@ -34,11 +38,12 @@ test('guided composer requires a separate preview confirmation and preserves edi
       },
     },
   });
+  // The only channel and teammate are chosen already, and From comes from the channel.
   await app.activate();
-  await press(app, 'return');
-  await press(app, 'return');
   assert.equal(app.state.panel.kind, 'form');
-  await press(app, 'return');
+  assert.equal(app.state.panel.values.channel, '+15555550100');
+  assert.equal(app.state.panel.values.from, '+15555550100');
+  assert.equal(app.state.panel.fields[app.state.panel.index].key, 'to');
   app.insert('+15555550101');
   await press(app, 'return');
   app.insert('Line one\nLine two');
@@ -53,7 +58,7 @@ test('guided composer requires a separate preview confirmation and preserves edi
   await press(app, 'escape');
   assert.equal(app.state.panel.kind, 'form');
   assert.equal(app.state.panel.values.message, 'Line one\nLine two');
-  assert.equal(app.state.panel.index, 2);
+  assert.equal(app.state.panel.fields[app.state.panel.index].key, 'message');
   assert.equal(sends, 0);
 
   await press(app, 'return');
@@ -63,15 +68,10 @@ test('guided composer requires a separate preview confirmation and preserves edi
   assert.equal(app.state.panel.kind, 'reader');
   assert.equal(app.state.panel.title, 'Message accepted');
 
-  app.compose(
-    { channelName: 'Main', userName: 'Avery', channel: 'c', user: 'u' },
-    {
-      from: '+15555550100',
-      to: '+15555550101',
-    },
-  );
-  await press(app, 'return');
-  await press(app, 'return');
+  // The next compose starts from the sender that was just used.
+  await app.startCompose();
+  assert.equal(app.state.panel.values.user, 'Avery');
+  app.compose(sender, { to: '+15555550101' });
   app.insert('x'.repeat(1601));
   await press(app, 'return');
   assert.equal(app.state.panel.kind, 'form');
@@ -93,16 +93,7 @@ test('an unknown send result keeps the draft and refuses a second send', async (
       },
     },
   });
-  app.compose(
-    { channelName: 'Main', userName: 'Avery', channel: 'c', user: 'u' },
-    {
-      from: '+15555550100',
-      to: '+15555550101',
-      message: 'Only once',
-    },
-  );
-  await press(app, 'return');
-  await press(app, 'return');
+  app.compose(sender, { to: '+15555550101', message: 'Only once' });
   await press(app, 'return');
   assert.equal(app.state.panel.kind, 'preview');
   await press(app, 'return');
@@ -120,8 +111,8 @@ test('an unknown send result keeps the draft and refuses a second send', async (
 
 test('form fields support caret movement, insertion, and deletion', async () => {
   const app = new Workspace({ account: { org_name: 'test' } });
-  app.compose({ channel: 'c', user: 'u' });
-  app.state.panel.index = 2;
+  app.compose(sender);
+  app.state.panel.index = 4;
   app.insert('Hello wrld');
   const message = () => app.state.panel.values.message;
   for (let i = 0; i < 3; i++) await press(app, 'left');
@@ -140,6 +131,37 @@ test('form fields support caret movement, insertion, and deletion', async () => 
   assert.equal(message(), ' Hello ');
   await app.handleKey('', { name: 'u', ctrl: true });
   assert.equal(message(), '');
+});
+
+test('pickers search as you type and fill the field they were opened from', async () => {
+  const people = ['Avery Stone', 'Jordan Reed', 'Riley Jones'].map((name, i) => ({
+    id: `c${i}`,
+    firstName: name.split(' ')[0],
+    lastName: name.split(' ')[1],
+    phone: `+1555555010${i}`,
+  }));
+  const second = { id: 'c2', name: 'Front desk', users: [{ id: 'u2', name: 'Riley' }] };
+  const app = new Workspace({
+    account: { org_name: 'test' },
+    services: { ...mock, contacts: async () => ({ data: people }) },
+  });
+  app.compose({ ...sender, channels: [channel, second] });
+  await press(app, 'return');
+  assert.equal(app.state.panel.title, 'Find a contact');
+  for (const ch of 'jrd') await app.handleKey(ch);
+  const shown = app.frame(90, 30).plain();
+  assert.ok(shown.includes('Jordan Reed'));
+  assert.equal(shown.includes('Avery Stone'), false);
+  await press(app, 'return');
+  assert.equal(app.state.panel.values.to, '+15555550101');
+
+  // Typing on the channel field searches channels; a new channel resets the teammate.
+  app.state.panel.index = 0;
+  await app.handleKey('f');
+  assert.equal(app.state.panel.title, 'Choose a sending channel');
+  await press(app, 'return');
+  assert.equal(app.state.panel.values.channel, 'Front desk');
+  assert.equal(app.state.panel.values.user, 'Riley');
 });
 
 test('message editing wraps at words while keeping the caret in place', () => {
@@ -318,8 +340,6 @@ test('messages group into threads that read as a conversation and reply in place
   await press(app, 'return');
   assert.equal(app.state.panel.kind, 'transcript');
   await app.handleKey('r');
-  await press(app, 'return');
-  await press(app, 'return');
   assert.equal(app.state.panel.kind, 'form');
   assert.equal(app.state.panel.values.to, '+15555550101');
 });
@@ -378,9 +398,7 @@ test('linear preview requires the exact SEND command', async () => {
     },
   });
   await launchLinear({
-    input: Readable.from([
-      '1\n1\n1\n:next\n+15555550101\nHello from the linear workspace\nsend\n:quit\n',
-    ]),
+    input: Readable.from(['1\n+15555550101\nHello from the linear workspace\nsend\n:quit\n']),
     output: sink,
     account: { org_name: 'test' },
     services: {
@@ -394,9 +412,7 @@ test('linear preview requires the exact SEND command', async () => {
   assert.equal(sends, 0);
   assert.ok(output.includes('Type SEND'));
   await launchLinear({
-    input: Readable.from([
-      '1\n1\n1\n:next\n+15555550101\nHello from the linear workspace\nSEND\n:quit\n',
-    ]),
+    input: Readable.from(['1\n+15555550101\nHello from the linear workspace\nSEND\n:quit\n']),
     output: sink,
     account: { org_name: 'test' },
     services: {
@@ -482,12 +498,17 @@ test('PTY restores the shell, handles Escape and multiline paste without submitt
     p.write('\x1b');
     await until('Compose a text');
     p.write('1\r');
+    await until('Review before sending.');
+    // Two demo channels: Enter opens each empty picker, Enter chooses.
+    p.write('\r');
     await until('Choose a sending channel');
     p.write('\r');
-    await until('Send as');
+    await until('Review before sending.');
     p.write('\r');
-    await until('Compose a text');
-    p.write('\r+15555550101\r');
+    await until('This teammate will own the message.');
+    p.write('\r');
+    await until('Review before sending.');
+    p.write('+15555550101\r');
     await sleep(100);
     p.write('\x1b[200~Hello\nfrom a pasted message\x1b[201~');
     await until('from a pasted message');

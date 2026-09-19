@@ -2,7 +2,7 @@
 // the panel it was given; the Workspace owns state transitions and redraws.
 
 import * as edit from './editor.js';
-import { visibleRows, layoutLines, bubbles } from './panels.js';
+import { visibleRows, visibleOptions, layoutLines, bubbles } from './panels.js';
 import { navigation } from './layout.js';
 import { logos } from './logo.js';
 import { wrap } from './text.js';
@@ -16,6 +16,9 @@ export const MESSAGE_KEYS = { contacts: 'm', threads: 'r' };
 const clamp = (n, max) => Math.max(0, Math.min(max, n));
 
 const cycle = (n, count, delta) => (n + delta + count) % count;
+
+const isPrintable = (str, key) =>
+  Boolean(str) && !key.ctrl && !key.meta && !/[\x00-\x1f\x7f]/.test(str);
 
 const isDown = (str, key) => key.name === 'down' || str === 'j';
 const isUp = (str, key) => key.name === 'up' || str === 'k';
@@ -40,9 +43,16 @@ export const handlers = {
 
   select(app, str, key) {
     const panel = app.state.panel;
-    if (isDown(str, key)) panel.index = cycle(panel.index, panel.options.length, 1);
-    else if (isUp(str, key)) panel.index = cycle(panel.index, panel.options.length, -1);
-    else if (key.name === 'return') return app.choose(panel.options[panel.index].value);
+    const options = visibleOptions(panel);
+    // A searchable list takes every printable key as query text, j and k included.
+    const typed = panel.search && isPrintable(str, key);
+    if (typed || (panel.search && key.name === 'backspace')) {
+      panel.query = typed ? (panel.query || '') + str : (panel.query || '').slice(0, -1);
+      panel.index = 0;
+    } else if (!options.length) return;
+    else if (isDown(str, key)) panel.index = cycle(panel.index, options.length, 1);
+    else if (isUp(str, key)) panel.index = cycle(panel.index, options.length, -1);
+    else if (key.name === 'return') return app.choose(options[panel.index].option.value);
   },
 
   reader(app, str, key) {
@@ -111,6 +121,15 @@ export const handlers = {
     };
 
     if (key.name === 'tab') return focus(key.shift ? -1 : 1);
+    // Fields with a list behind them: Ctrl+F opens it, and a chosen-only field
+    // opens it on the first letter typed instead of accepting free text.
+    if (field.pick && key.ctrl && key.name === 'f') return field.pick('');
+    if (field.pick && !field.editable) {
+      if (key.name === 'up' || key.name === 'down') return focus(key.name === 'up' ? -1 : 1);
+      if (key.name === 'return') return app.submitForm();
+      if (isPrintable(str, key)) return field.pick(str);
+      return;
+    }
     if (key.name === 'left') panel.carets[field.key] = edit.move(value, caret, -1);
     else if (key.name === 'right') panel.carets[field.key] = edit.move(value, caret, 1);
     else if (key.name === 'home' || (key.ctrl && key.name === 'a'))

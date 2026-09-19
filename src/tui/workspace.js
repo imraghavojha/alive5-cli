@@ -99,9 +99,18 @@ export class Workspace {
 
   // ---- panel constructors ------------------------------------------------
 
-  select(title, options, onSelect, subtitle) {
+  select(title, options, onSelect, subtitle, { search = false, query = '', index = 0 } = {}) {
     if (!options.length) throw new CliError('NO_OPTIONS', 'No matching options are available.');
-    this.show({ kind: 'select', title, options, index: 0, onSelect, subtitle });
+    this.show({
+      kind: 'select',
+      title,
+      options,
+      index: query ? 0 : index,
+      onSelect,
+      subtitle,
+      search,
+      query,
+    });
   }
 
   form(title, fields, onSubmit, subtitle, initial = {}) {
@@ -195,8 +204,8 @@ export class Workspace {
   activate() {
     return flows.activate(this);
   }
-  chooseSender(then) {
-    return flows.chooseSender(this, then);
+  startCompose(initial) {
+    return flows.startCompose(this, initial);
   }
   compose(context, initial) {
     return flows.compose(this, context, initial);
@@ -214,6 +223,8 @@ export class Workspace {
   async submitForm() {
     const panel = this.state.panel;
     const field = panel.fields[panel.index];
+    // An empty field with a list behind it opens the list instead of failing.
+    if (field.pick && !panel.values[field.key]?.trim()) return field.pick('');
     if (!panel.values[field.key]?.trim()) {
       this.state.error = `${field.label} is required.`;
       return;
@@ -308,7 +319,10 @@ export class Workspace {
     if (this.closed) return;
     if (key.ctrl && key.name === 'c') return this.quit(130);
     const panel = this.state.panel;
-    const typing = panel.kind === 'form' || (panel.kind === 'list' && panel.filtering);
+    const typing =
+      panel.kind === 'form' ||
+      (panel.kind === 'list' && panel.filtering) ||
+      (panel.kind === 'select' && panel.search);
     this.state.notice = '';
     if (key.name === 'escape') {
       if (this.state.busy) {
@@ -349,6 +363,7 @@ export class Workspace {
     const panel = this.state.panel;
     if (panel.kind !== 'form' || this.state.busy) return;
     const field = panel.fields[panel.index];
+    if (field.pick && !field.editable) return;
     const caret = panel.carets[field.key] ?? edit.length(panel.values[field.key] || '');
     const next = edit.insert(field, panel.values[field.key] || '', caret, text);
     panel.values[field.key] = next.value;
