@@ -35,9 +35,20 @@ function scroll(panel, str, key, max) {
 
 export const handlers = {
   home(app, str, key) {
-    if (isDown(str, key)) app.state.nav = cycle(app.state.nav, navigation.length, 1);
-    else if (isUp(str, key)) app.state.nav = cycle(app.state.nav, navigation.length, -1);
-    else if (/^[1-6]$/.test(str || '')) app.state.nav = Number(str) - 1;
+    const state = app.state;
+    const recent = state.recent || [];
+    // Tab moves between the menu and recent conversations, when they are on screen.
+    if (key.name === 'tab' && app.cachedScreen?.hits.some((h) => h.group === 'recent'))
+      state.focus = state.focus === 'recent' ? 'nav' : 'recent';
+    else if (/^[1-6]$/.test(str || '')) {
+      state.nav = Number(str) - 1;
+      state.focus = 'nav';
+    } else if (state.focus === 'recent' && recent.length) {
+      if (isDown(str, key)) state.recentIndex = clamp(state.recentIndex + 1, recent.length - 1);
+      else if (isUp(str, key)) state.recentIndex = clamp(state.recentIndex - 1, recent.length - 1);
+      else if (key.name === 'return') return app.openRecord(recent[state.recentIndex]);
+    } else if (isDown(str, key)) state.nav = cycle(state.nav, navigation.length, 1);
+    else if (isUp(str, key)) state.nav = cycle(state.nav, navigation.length, -1);
     else if (key.name === 'return' || key.name === 'right') return app.activate();
   },
 

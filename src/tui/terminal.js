@@ -15,7 +15,8 @@ export class Terminal {
     this.closed = false;
   }
   open() {
-    this.output.write('\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?2004h');
+    // Alternate screen, hidden cursor, no wrap, bracketed paste, SGR mouse.
+    this.output.write('\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?2004h\x1b[?1000h\x1b[?1006h');
   }
   /** Writes only the rows that changed, wrapped in a synchronized update. */
   render(screen) {
@@ -36,6 +37,6 @@ export class Terminal {
   close() {
     if (this.closed) return;
     this.closed = true;
-    this.output.write('\x1b[0m\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l');
+    this.output.write('\x1b[0m\x1b[?1006l\x1b[?1000l\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l');
   }
 }

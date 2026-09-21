@@ -43,6 +43,10 @@ export class Workspace {
       notice: '',
       busy: '',
       tick: 0,
+      // Home: which column has focus, and the threads from the last week.
+      focus: 'nav',
+      recent: null,
+      recentIndex: 0,
       ...appearanceDefaults,
       ...settings,
       entrance: 0,
@@ -168,6 +172,14 @@ export class Workspace {
 
   help() {
     this.show({ kind: 'help', lines: SHORTCUTS, scroll: 0 });
+  }
+
+  palette() {
+    return flows.palette(this);
+  }
+
+  loadRecent() {
+    return flows.loadRecent(this);
   }
 
   // ---- async work --------------------------------------------------------
@@ -340,7 +352,9 @@ export class Workspace {
       return;
     }
     if (this.state.busy) return;
+    if (key.ctrl && key.name === 'k') return this.palette();
     if (!typing) {
+      if (str === ':') return this.palette();
       if (str === 'q') return this.quit(0);
       if (str === '?') return panel.kind === 'help' ? this.back() : this.help();
       if (str === 'a' && panel.kind !== 'appearance') {
@@ -350,6 +364,36 @@ export class Workspace {
       }
     }
     await handlers[panel.kind]?.(this, str, key);
+    this.changed();
+  }
+
+  /**
+   * SGR mouse input. The wheel scrolls like the arrow keys; a click selects
+   * the row under the pointer, and a click on the selected row opens it.
+   */
+  async mouse({ button, x, y, release }) {
+    if (this.closed || this.state.busy || release) return;
+    if (button === 64 || button === 65)
+      return this.handleKey('', { name: button === 64 ? 'up' : 'down' });
+    const hit = button === 0 && this.cachedScreen?.hitAt(x, y);
+    if (!hit) return;
+    const panel = this.state.panel;
+    const again = (current) => current === hit.index;
+    if (panel.kind === 'home' && hit.group === 'recent') {
+      const opened = this.state.focus === 'recent' && again(this.state.recentIndex);
+      Object.assign(this.state, { focus: 'recent', recentIndex: hit.index });
+      if (opened) return this.handleKey('', { name: 'return' });
+    } else if (panel.kind === 'home') {
+      const opened = this.state.focus === 'nav' && again(this.state.nav);
+      Object.assign(this.state, { focus: 'nav', nav: hit.index });
+      if (opened) return this.activate();
+    } else if (panel.kind === 'form') {
+      if (again(panel.index)) return;
+      panel.index = hit.index;
+    } else if ('index' in panel) {
+      if (again(panel.index)) return this.handleKey('', { name: 'return' });
+      panel.index = hit.index;
+    }
     this.changed();
   }
 

@@ -13,8 +13,8 @@ export { navigation, layout } from './layout.js';
 /** Shortcut lines per panel, wide first and narrow as a fallback. */
 const HINTS = {
   home: [
-    '↑↓ or 1–6 select · Enter open · a appearance · ? help · q quit',
-    '↑↓ · Enter · ? help · q',
+    '↑↓ select · Enter open · Ctrl+K commands · a appearance · ? help · q quit',
+    '↑↓ · Enter · Ctrl+K · ? · q',
   ],
   appearance: ['↑↓ row · ←→ change · Enter apply · Esc back', '↑↓ row · ←→ change · Esc back'],
   form: ['←→ move · Tab next field · Enter continue · Esc back', 'Tab next · Enter · Esc back'],
@@ -125,7 +125,9 @@ function keys(s, x, y, w, hint) {
  */
 function footer(s, state, panel, l, width, height) {
   const narrow = l.narrow;
-  const hint = HINTS[panel.kind]?.[narrow ? 1 : 0] || '';
+  let hint = HINTS[panel.kind]?.[narrow ? 1 : 0] || '';
+  if (s.hits.some((h) => h.group === 'recent'))
+    hint = hint.replace('Enter open', 'Enter open · Tab recent');
   const lines = state.error ? wrap(state.error, l.w).slice(0, 2) : [hint];
   // A two-line message borrows the rule's row so the panel never shifts.
   const ruleRow = height - 3 - (lines.length > 1 ? 1 : 0);
@@ -148,6 +150,9 @@ export const SHORTCUTS = [
   ['↑ ↓ / j k', 'Move the selection'],
   ['Enter', 'Open or confirm'],
   ['Esc', 'Back one step, keeping your work; repeat to reach Home'],
+  ['Ctrl+K or :', 'Search every action'],
+  ['Tab', 'Home: move between the menu and recent conversations'],
+  ['Mouse', 'Click to select, click again to open, wheel to scroll'],
   ['?', 'Show or hide this list'],
   ['q', 'Quit · Ctrl+C always quits'],
   ['', ''],

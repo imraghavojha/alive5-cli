@@ -43,6 +43,7 @@ export const navigation = [
 ];
 
 export const MIN_WIDTH = 40;
+const HOME_MENU = 38;
 export const MIN_HEIGHT = 24;
 
 /** Panels that keep the animated banner; everything else uses the one-line header. */
@@ -56,7 +57,9 @@ const headerRows = (logo) => (logo ? Math.min(10, logoById(logo).lines.length + 
 export function layout(width, height, kind = 'home', logo = null) {
   const left = 3;
   const splitList = kind === 'list' && width >= 100;
-  const w = Math.min(splitList ? 154 : 78, width - left * 2);
+  // Wide Home puts recent conversations beside the menu.
+  const splitHome = kind === 'home' && width >= 110;
+  const w = Math.min(splitList || splitHome ? 154 : 78, width - left * 2);
   const listWidth = Math.floor(w * 0.58);
   const header = headerRows(showsBanner(kind) ? logo : null);
   const top = header + 1;
@@ -65,7 +68,7 @@ export function layout(width, height, kind = 'home', logo = null) {
   return {
     narrow: w < 60,
     tooSmall: width < MIN_WIDTH || height < MIN_HEIGHT,
-    logoWidth: w,
+    logoWidth: Math.min(w, 78),
     logoHeight: header - 3,
     x: left,
     left,
@@ -75,5 +78,6 @@ export function layout(width, height, kind = 'home', logo = null) {
     h: bottom - top,
     list: splitList ? { x: left, w: listWidth } : null,
     detail: splitList ? { x: left + listWidth + 2, w: w - listWidth - 2 } : null,
+    recent: splitHome ? { x: left + HOME_MENU + 2, w: w - HOME_MENU - 2 } : null,
   };
 }

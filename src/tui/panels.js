@@ -24,18 +24,20 @@ function button(s, x, y, w, text, tone = s.theme.orange) {
 }
 
 /** Highlights the focused row and writes its label. */
-function row(s, l, y, active, text, tone) {
+/** Highlights the focused row, writes its label, and makes it clickable. */
+function row(s, l, y, active, text, target) {
   if (active) s.fill(l.x, y, l.w, 1, s.theme.selected);
   s.text(
     l.x + 1,
     y,
     l.w - 2,
     (active ? '▌ ' : '  ') + text,
-    tone || (active ? s.theme.ink : s.theme.muted),
+    active ? s.theme.ink : s.theme.muted,
     active ? s.theme.selected : s.theme.bg,
     active,
   );
   if (active && s.themeName === 'terminal') s.reverse(l.x, y, l.w);
+  if (target) s.hit(l.x, y, l.w, target);
 }
 
 /** Keeps the focused index inside a window of `visible` rows. */
@@ -97,13 +99,29 @@ function scrollNote(s, l, start, shown, total, suffix = '') {
 
 export const panels = {
   home(s, l, panel, state) {
+    const menu = l.recent ? { ...l, w: l.recent.x - l.x - 2 } : l;
+    const onMenu = state.focus !== 'recent';
     navigation.forEach((item, i) =>
-      row(s, l, l.top + i, state.nav === i, `${i + 1}  ${item.label}`),
+      row(s, menu, l.top + i, onMenu && state.nav === i, `${i + 1}  ${item.label}`, {
+        group: 'nav',
+        index: i,
+      }),
     );
     const active = navigation[state.nav];
+    const below = l.top + navigation.length + 1;
     if (l.h >= 9) {
-      muted(s, l.x, l.top + navigation.length + 1, l.w, active.description);
-      s.text(l.x, l.top + navigation.length + 2, l.w, active.code, s.theme.faint);
+      const about = wrap(active.description, menu.w).slice(0, 2);
+      about.forEach((text, i) => muted(s, l.x, below + i, menu.w, text));
+      s.text(l.x, below + about.length, menu.w, active.code, s.theme.faint);
+    }
+    // Recent conversations: beside the menu when wide, under it when there is room.
+    if (l.recent) {
+      const height = l.bottom - l.top;
+      s.box(l.recent.x, l.top, l.recent.w, height, 'Recent conversations', s.theme.muted);
+      recent(s, { x: l.recent.x + 1, w: l.recent.w - 2 }, l.top + 1, height - 2, state);
+    } else if (l.bottom - (below + 4) >= 3) {
+      s.text(l.x, below + 4, l.w, 'Recent conversations', s.theme.faint);
+      recent(s, l, below + 5, l.bottom - (below + 5), state);
     }
   },
 
@@ -122,7 +140,7 @@ export const panels = {
     options.slice(start, start + visible).forEach(({ option, at }, i) => {
       const y = first + i;
       const active = start + i === panel.index;
-      row(s, l, y, active, option.label);
+      row(s, l, y, active, option.label, { index: start + i });
       const bg = active ? s.theme.selected : s.theme.bg;
       // Matched characters are highlighted, fzf-style, so the ranking reads.
       const chars = graphemes(option.label);
@@ -137,8 +155,15 @@ export const panels = {
             true,
           );
       if (option.detail) {
-        const w = Math.min(28, Math.floor(l.w / 2));
-        s.text(l.x + l.w - w - 1, y, w, clipWithEllipsis(option.detail, w), s.theme.faint, bg);
+        const detail = clipWithEllipsis(option.detail, Math.min(28, Math.floor(l.w / 2)));
+        s.text(
+          l.x + l.w - 2 - stringWidth(detail),
+          y,
+          stringWidth(detail),
+          detail,
+          s.theme.faint,
+          bg,
+        );
       }
     });
     scrollbar(s, l.x + l.w, first, visible, start, visible, options.length);
@@ -197,7 +222,7 @@ export const panels = {
       const text = columns
         .map((_, n) => clipWithEllipsis(r.cells[n], widths[n]).padEnd(widths[n]))
         .join(' ');
-      row(s, inner, top + 2 + i, start + i === panel.index, text);
+      row(s, inner, top + 2 + i, start + i === panel.index, text, { index: start + i });
     });
     scrollbar(s, table.x + table.w - 1, top + 2, visible, start, visible, rows.length);
     // The filter state is always stated, so a short filtered list is never
@@ -327,6 +352,25 @@ function detail(s, l, top, height, selected) {
     s.text(x + 2, top + height - 1, w - 4, ' Enter for full details ', s.theme.muted);
 }
 
+/** Home's recent threads: who, when, and the last thing said. */
+function recent(s, area, y, rows, state) {
+  const say = (text) => muted(s, area.x + 2, y, area.w - 4, text);
+  if (state.recent == null) return say(state.recentError || 'Loading…');
+  if (!state.recent.length) return say('No messages in the last 7 days.');
+  const who = Math.min(18, Math.floor(area.w / 3));
+  state.recent.slice(0, rows).forEach((thread, i) => {
+    const last = thread.messages.at(-1) || {};
+    const when = last.at ? ago(last.at) : '';
+    const text = [
+      clipWithEllipsis(thread.name, who - 1).padEnd(who),
+      when.padEnd(9),
+      (last.inbound ? '' : 'You: ') + (last.text ?? ''),
+    ].join('');
+    const active = state.focus === 'recent' && state.recentIndex === i;
+    row(s, area, y + i, active, clipWithEllipsis(text, area.w - 4), { group: 'recent', index: i });
+  });
+}
+
 /** The selected thread beside the list, scrolled to its latest message. */
 function conversation(s, l, top, height, selected) {
   const { x, w } = l.detail;
@@ -398,6 +442,7 @@ function drawField(s, l, panel, field, index, y, height) {
     ? `${field.label} · ${length(value)} / ${MESSAGE_LIMIT}`
     : field.label;
   if (inside(y)) s.text(l.x, y, l.w, title, active ? s.theme.orange : s.theme.muted);
+  for (let n = 0; n < height - 1; n++) if (inside(y + n)) s.hit(l.x, y + n, l.w, { index });
   const shown = field.secret ? '•'.repeat(Math.min(length(value), 80)) : value;
   const rows = height - 2;
   const { lines, caret } = wrapWithCaret(

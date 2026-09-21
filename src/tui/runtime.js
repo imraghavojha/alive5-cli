@@ -62,6 +62,7 @@ export async function launchTui(options = {}) {
     onKeys: (value) => input.write(value),
     onPaste: (text) => workspace.insert(text),
     onEscape: () => workspace.handleKey('', { name: 'escape' }).catch(onError),
+    onMouse: (event) => workspace.mouse(event).catch(onError),
   });
   const onData = (chunk) => decoder.feed(chunk);
 
@@ -138,5 +139,6 @@ export async function launchTui(options = {}) {
   }, FRAME_INTERVAL_MS);
 
   if (!options.account) workspace.connect().catch(onError);
+  else workspace.loadRecent();
   await exited;
 }

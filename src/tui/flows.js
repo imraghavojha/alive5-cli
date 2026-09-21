@@ -58,7 +58,9 @@ export async function connect(app) {
     }
     try {
       const account = await app.services.account();
-      if (current()) app.state.account = account;
+      if (!current()) return;
+      app.state.account = account;
+      loadRecent(app);
     } catch (e) {
       if (!process.env.ALIVE5_API_KEY && e.exitCode === 3) {
         if (current()) login(app);
@@ -79,6 +81,7 @@ export function login(app) {
       app.state.account = account;
       app.home();
       app.state.notice = 'Connected. Your key is saved only on this computer.';
+      loadRecent(app);
     },
     'Alive5 → Integrations → API Key',
   );
@@ -130,11 +133,7 @@ function actions(app) {
       app.reader('Built for your agent', AGENT_GUIDE, 'Quiet commands. Predictable JSON.'),
     send: () => startCompose(app),
     messages: () =>
-      dates(app, 'Read recent messages', async (v, current) => {
-        const rows = await app.services.messages(v);
-        const summary = `${rows.length} messages`;
-        if (current()) app.list('Recent messages', 'threads', records.threads(rows), { summary });
-      }),
+      dates(app, 'Read recent messages', (range, current) => messages(app, range, current)),
     history: () =>
       app.select(
         'Conversation type',
@@ -166,21 +165,87 @@ function actions(app) {
           { label: 'Channels & teammates', value: 'channels' },
           { label: 'Tags', value: 'tags' },
         ],
-        (kind) =>
-          app.run(`Loading ${kind}`, (current) =>
-            paged(
-              app,
-              kind[0].toUpperCase() + kind.slice(1),
-              kind,
-              async (page) => {
-                const result = await app.services[kind]({ page, limit: 25 });
-                return Array.isArray(result) ? { data: result, meta: {} } : result;
-              },
-              current,
-            ),
-          ),
+        (kind) => directory(app, kind),
       ),
   };
+}
+
+async function messages(app, range, current) {
+  const rows = await app.services.messages(range);
+  const summary = `${rows.length} messages`;
+  if (current()) app.list('Recent messages', 'threads', records.threads(rows), { summary });
+}
+
+const directory = (app, kind) =>
+  app.run(`Loading ${kind}`, (current) =>
+    paged(
+      app,
+      kind[0].toUpperCase() + kind.slice(1),
+      kind,
+      async (page) => {
+        const result = await app.services[kind]({ page, limit: 25 });
+        return Array.isArray(result) ? { data: result, meta: {} } : result;
+      },
+      current,
+    ),
+  );
+
+const lastWeek = () => ({ since: isoDay(7), until: isoDay(-1) });
+
+/**
+ * Loads the last week's threads for Home in the background. It never sets the
+ * busy state, so Home stays usable while it loads.
+ */
+export async function loadRecent(app) {
+  if (!app.services.messages) return;
+  try {
+    const rows = await app.services.messages(lastWeek());
+    app.state.recent = records.threads(rows);
+  } catch {
+    app.state.recentError = 'Recent conversations could not be loaded.';
+  }
+  app.changed();
+}
+
+/**
+ * Every action by name, fuzzy-searchable from anywhere with Ctrl+K. Entries
+ * that need an account are hidden until one is connected.
+ */
+export function palette(app) {
+  const signedIn = Boolean(app.state.account);
+  const go = (id) => () => {
+    app.state.nav = navigation.findIndex((n) => n.id === id);
+    return activate(app);
+  };
+  const entries = [
+    ['Compose a text', '1', go('send'), true],
+    [
+      'Messages from the last 7 days',
+      '',
+      () => app.run('Loading', (c) => messages(app, lastWeek(), c)),
+      true,
+    ],
+    ['Recent messages…', '2', go('messages'), true],
+    ['Conversations…', '3', go('history'), true],
+    ['Contacts', '', () => directory(app, 'contacts'), true],
+    ['Channels & teammates', '', () => directory(app, 'channels'), true],
+    ['Tags', '', () => directory(app, 'tags'), true],
+    ['Agent quick start', '5', go('agents')],
+    ['Appearance', 'a', go('appearance')],
+    ['Keyboard shortcuts', '?', () => app.help()],
+    ['Home', '', () => app.home()],
+    ['Quit', 'q', () => app.quit(0)],
+  ].filter(([, , , needsAccount]) => signedIn || !needsAccount);
+  app.select(
+    'Go to…',
+    entries.map(([label, key, run]) => ({ label, detail: key, value: run })),
+    (run) => {
+      app.back();
+      return run();
+    },
+    'Every action, searchable. Esc closes.',
+    { search: true },
+  );
 }
 
 /** Loads one page and wires `n` to the next, reusing the same list panel shape. */

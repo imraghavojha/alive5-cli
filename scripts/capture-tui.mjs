@@ -142,6 +142,7 @@ if (process.env.CAPTURE_PAUSED) {
   pty.write('1');
   await sleep(100);
 }
+await sleep(300);
 await capture('01-home');
 pty.write('a');
 await sleep(200);
@@ -209,6 +210,15 @@ await capture('05b-filter');
 pty.write('\r\r');
 await sleep(250);
 await capture('05c-detail');
+pty.write('\x1b');
+await sleep(150);
+
+// The command palette, searching every action.
+pty.write('\x0b');
+await sleep(150);
+pty.write('con');
+await sleep(200);
+await capture('06a-palette');
 pty.write('\x1b');
 await sleep(150);
 

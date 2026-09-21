@@ -15,6 +15,7 @@ import { wrapWithCaret } from '../src/tui/editor.js';
 import { sendForm } from '../src/api.js';
 import { isoDay } from '../src/tui/flows.js';
 import { threads } from '../src/tui/records.js';
+import { createDecoder } from '../src/tui/input.js';
 import { preparePty } from '../scripts/pty-helper.mjs';
 // Workspaces remember the last sender on disk; keep that away from real config.
 process.env.ALIVE5_CONFIG_DIR = await mkdtemp(join(tmpdir(), 'alive5-tui-'));
@@ -344,6 +345,44 @@ test('messages group into threads that read as a conversation and reply in place
   assert.equal(app.state.panel.values.to, '+15555550101');
 });
 
+test('Home lists recent threads; Ctrl+K and the mouse reach any screen', async () => {
+  const people = [{ id: 'c1', firstName: 'Avery', phone: '+15555550101' }];
+  const app = new Workspace({
+    account: { org_name: 'test' },
+    services: {
+      ...mock,
+      contacts: async () => ({ data: people, meta: {} }),
+      messages: async () => [
+        { threadId: 't1', sender: '+15555550101', at: new Date().toISOString(), text: 'Hello?' },
+      ],
+    },
+  });
+  await app.loadRecent();
+  assert.ok(app.frame(120, 34).plain().includes('Recent conversations'));
+  assert.ok(app.frame(80, 30).plain().includes('Hello?'));
+  await press(app, 'tab');
+  await press(app, 'return');
+  assert.equal(app.state.panel.kind, 'transcript');
+
+  await app.handleKey('', { name: 'k', ctrl: true });
+  for (const ch of 'contacts') await app.handleKey(ch);
+  await press(app, 'return');
+  assert.equal(app.state.panel.title, 'Contacts');
+
+  // A click selects a row, and a second click on it opens it.
+  const screen = app.frame(80, 30);
+  const hit = screen.hits.find((h) => h.index === 0);
+  await app.mouse({ button: 0, x: hit.x + 2, y: hit.y });
+  await app.mouse({ button: 0, x: hit.x + 2, y: hit.y });
+  assert.equal(app.state.panel.kind, 'reader');
+  const events = [];
+  createDecoder({ onKeys: (k) => events.push(k), onMouse: (m) => events.push(m) }).feed(
+    'a\x1b[<0;12;5Mb',
+  );
+  // Mouse reports are removed from the key stream; the keys around them remain.
+  assert.deepEqual(events, [{ button: 0, x: 11, y: 4, release: false }, 'ab']);
+});
+
 test('fresh appearance is calm, saved motion survives, and native colors use defaults', async () => {
   const previous = process.env.ALIVE5_CONFIG_DIR;
   const dir = await mkdtemp(join(tmpdir(), 'alive5-new-appearance-'));
@@ -527,6 +566,7 @@ test('PTY restores the shell, handles Escape and multiline paste without submitt
     assert.equal(term.buffer.active.type, 'normal');
     assert.ok(output.includes('\x1b[?25h'));
     assert.ok(output.includes('\x1b[?2004l'));
+    assert.ok(output.includes('\x1b[?1000l'));
     assert.equal(output.includes('\n'), false);
   } finally {
     p.kill();

@@ -6,19 +6,32 @@ const PASTE_END = '\x1b[201~';
 const ESCAPE_DELAY_MS = 30;
 const PASTE_LIMIT = 8192;
 
+const MOUSE = /\x1b\[<(\d+);(\d+);(\d+)([Mm])/g;
+
 /**
  * @param onKeys  receives decoded key bytes for the keypress reader
  * @param onPaste receives one complete pasted block
  * @param onEscape called when a lone Escape byte was not part of a sequence
+ * @param onMouse receives SGR mouse events with zero-based cell coordinates
  */
-export function createDecoder({ onKeys, onPaste, onEscape }) {
+export function createDecoder({ onKeys, onPaste, onEscape, onMouse = () => {} }) {
   let pending = '';
   let pasting = false;
   let pasted = '';
   let timer;
 
+  // Mouse reports are taken out before the keypress reader sees them as keys.
   const emit = (value) => {
-    if (value) onKeys(value);
+    const keys = value.replace(MOUSE, (_, button, x, y, kind) => {
+      onMouse({
+        button: Number(button),
+        x: Number(x) - 1,
+        y: Number(y) - 1,
+        release: kind === 'm',
+      });
+      return '';
+    });
+    if (keys) onKeys(keys);
   };
 
   function feed(chunk) {

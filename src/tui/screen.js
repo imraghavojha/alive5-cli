@@ -85,6 +85,8 @@ export class Screen {
     this.themeName = themeName;
     this.theme = themes[themeName] || theme;
     this.rowCache = [];
+    // Clickable regions recorded while drawing, read by the mouse handler.
+    this.hits = [];
     this.cells = Array.from({ length: height }, () =>
       Array.from({ length: width }, () => ({
         ch: ' ',
@@ -134,6 +136,12 @@ export class Screen {
   }
   line(x, y, w, fg = this.theme.line) {
     this.put(x, y, '─'.repeat(Math.max(0, w)), fg);
+  }
+  hit(x, y, w, target) {
+    this.hits.push({ x, y, w, ...target });
+  }
+  hitAt(x, y) {
+    return this.hits.findLast((h) => h.y === y && x >= h.x && x < h.x + h.w);
   }
   /** A rounded frame with an optional title set into the top edge. */
   box(x, y, w, h, title = '', tone = this.theme.muted) {
