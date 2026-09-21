@@ -441,7 +441,8 @@ function drawField(s, l, panel, field, index, y, height) {
   const title = field.multiline
     ? `${field.label} · ${length(value)} / ${MESSAGE_LIMIT}`
     : field.label;
-  if (inside(y)) s.text(l.x, y, l.w, title, active ? s.theme.orange : s.theme.muted);
+  if (inside(y))
+    s.text(l.x, y, l.w, clipWithEllipsis(title, l.w), active ? s.theme.orange : s.theme.muted);
   for (let n = 0; n < height - 1; n++) if (inside(y + n)) s.hit(l.x, y + n, l.w, { index });
   const shown = field.secret ? '•'.repeat(Math.min(length(value), 80)) : value;
   const rows = height - 2;
@@ -480,8 +481,11 @@ function fitColumns(columns, width) {
 function columnWidths(columns, width) {
   const available = width - 4 - (columns.length - 1);
   const wanted = columns.reduce((a, c) => a + c.width, 0);
+  // Spare room goes to the flexible column, or the last one.
+  const marked = columns.findIndex((c) => c.flex);
+  const flex = marked < 0 ? columns.length - 1 : marked;
   if (wanted <= available)
-    return columns.map((c, i) => c.width + (i === columns.length - 1 ? available - wanted : 0));
+    return columns.map((c, i) => c.width + (i === flex ? available - wanted : 0));
   const scale = available / wanted;
   return columns.map((c) => Math.max(6, Math.floor(c.width * scale)));
 }

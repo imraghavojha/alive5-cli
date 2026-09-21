@@ -82,7 +82,7 @@ export function describe(kind, records) {
   };
 }
 
-const column = (key, header, width, from) => ({ key, header, width, from });
+const column = (key, header, width, from, flex = false) => ({ key, header, width, from, flex });
 
 const TABLES = {
   contacts: {
@@ -110,12 +110,18 @@ const TABLES = {
     title: (t) => t.name,
     columns: [
       column('name', 'CONTACT', 18),
+      // Flexible: its width is a minimum, and narrow lists keep it over WHEN.
+      column(
+        'last',
+        'LAST MESSAGE',
+        24,
+        (t) => {
+          const m = t.messages.at(-1);
+          return m ? (m.inbound ? '' : 'You: ') + (m.text ?? '') : '';
+        },
+        true,
+      ),
       column('at', 'WHEN', 9),
-      // The last column takes whatever width is left, so its size is a minimum.
-      column('last', 'LAST MESSAGE', 24, (t) => {
-        const m = t.messages.at(-1);
-        return m ? (m.inbound ? '' : 'You: ') + (m.text ?? '') : '';
-      }),
     ],
   },
   generic: (records) => ({
