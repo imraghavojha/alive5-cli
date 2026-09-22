@@ -52,3 +52,13 @@ V3 was tested offline with fake contacts and numbers. No live SMS was sent. Thre
 ## Version 0.4
 
 All 18 tests pass, including the new agent-facing appearance commands and bounded Cosmos effects. Appearance configuration works without an API key and preserves JSON output and exit codes. The independent command/PTY review passed. Details, render measurements, and visual review notes are in [Cosmos notes](cosmos.md). This release was verified offline and sent no live SMS.
+
+## Version 0.5
+
+September 21, 2026. All 40 tests pass on Node 22.18.0 with `TZ=America/Chicago`, and `npm run check` is clean. This release was verified offline with fake data and sent no live SMS.
+
+New tests cover local-calendar date presets, command typo suggestions and missing-flag fields, aligned details with OSC 8 links, thread grouping and chat alignment, searchable pickers, Home's recent threads, the command palette, and mouse clicks and decoding. The PTY test also checks that mouse reporting is turned off on exit.
+
+Real PTY captures were taken at 120×34, 80×24, and 40×24 in the dark theme, and at 120×34 in the light and high-contrast themes. A separate PTY script sent SGR click and wheel reports to the demo and confirmed that the menu selection and opening worked. The README GIF was recorded with VHS from `docs/demo.tape` against the offline demo.
+
+The captures were reviewed by the Claude Opus 5.5 session that made the changes, not by an independent reviewer. That review led to the flexible message column at 40 columns, ellipses on clipped labels, right-aligned picker hints, and hiding `Tab recent` when recent threads do not fit. No weaker-model usability pass was run for this release.

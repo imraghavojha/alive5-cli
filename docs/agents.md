@@ -30,7 +30,7 @@ Phone numbers need a `+` and country code. Spaces, parentheses, and hyphens are 
 
 `schema` also reports argument shapes, which options take a value, option choices and defaults, the `authentication` block (the `X-A5-APIKEY` header, `ALIVE5_API_KEY`, and `alive5 auth login --key-stdin`), a `sideEffects` block naming the commands that write, exit codes, and behavioral notes. Source inspection should not be necessary.
 
-A parent command invoked without a subcommand fails with `SUBCOMMAND_REQUIRED`, exit 2, and `error.details.subcommands` listing what it accepts. Validation failures carry `error.field`, and message-length failures also carry `error.details.length` and `error.details.limit`.
+A parent command invoked without a subcommand fails with `SUBCOMMAND_REQUIRED`, exit 2, and `error.details.subcommands` listing what it accepts. A mistyped command fails with `UNKNOWN_COMMAND` and `error.details.suggestions`, the likely intended names. A missing required flag fails with `MISSING_OPTION` and `error.field`. Validation failures carry `error.field`, and message-length failures also carry `error.details.length` and `error.details.limit`.
 
 `--dry-run` on `sms send` is local validation only: it returns `validated: "locally"` alongside the exact multipart form, makes no API request, and asserts nothing about the account, the channel, or delivery.
 

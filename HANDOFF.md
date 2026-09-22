@@ -92,3 +92,13 @@ Items 1–5, 7–13, and 16–23 are done, with 29 passing tests and `npm run ch
 - **Visual review:** Claude Opus 5 read six real offline PTY PNG captures and identified capture defaults, wide-list density, focus, and theme contrast issues. Those fixes were applied and captured again. A requested second Opus pass hit Claude Code's rate/session limit; an attempt through OpenCode reported insufficient account funds. Neither returned feedback. An independent `mimo-v2.6-flash-free` command and terminal pass found narrower list, shortcut, hint, and wrapping defects that were fixed. Its later review of four PNGs reported no blocking visual defects. The screenshot files and raw responses are gitignored under `.local/`.
 
 No live messages were sent. Review images use fake offline data.
+
+## Version 0.5, September 21
+
+This pass made the UX changes from the terminal UX review and deliberately left out the agent-facing proposals (fewer IDs for sending, a delivery check, contact search, output-field discovery, structured next steps, JSON payload input, NDJSON, MCP). Those remain open.
+
+- **Fixes:** date presets use the local calendar; mistyped commands suggest the intended one; missing flags name their field; list screens show a spinner while loading.
+- **Look:** framed list panes with scrollbars, aligned label/value details, OSC 8 links, relative times in lists and local times in details, bright keys in the footer, and self-clearing notices.
+- **Conversations:** messages and transcripts are threads with a chat-style transcript and `r` to reply.
+- **Compose:** channel and teammate are form fields; pickers search as you type; To can search contacts; the last sender is remembered in `recent.json`.
+- **Navigation:** Home shows recent threads, `Ctrl+K` searches every action, and the mouse selects, opens, and scrolls.

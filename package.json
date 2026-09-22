@@ -1,6 +1,6 @@
 {
   "name": "@alive5/cli",
-  "version": "0.4.0",
+  "version": "0.5.0",
   "description": "Alive5 in your terminal. Built for people and agents.",
   "type": "module",
   "bin": {
