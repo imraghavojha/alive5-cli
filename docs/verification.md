@@ -62,3 +62,5 @@ New tests cover local-calendar date presets, command typo suggestions and missin
 Real PTY captures were taken at 120×34, 80×24, and 40×24 in the dark theme, and at 120×34 in the light and high-contrast themes. A separate PTY script sent SGR click and wheel reports to the demo and confirmed that the menu selection and opening worked. The README GIF was recorded with VHS from `docs/demo.tape` against the offline demo.
 
 The captures were reviewed by the Claude Opus 5.5 session that made the changes, not by an independent reviewer. That review led to the flexible message column at 40 columns, ellipses on clipped labels, right-aligned picker hints, and hiding `Tab recent` when recent threads do not fit. No weaker-model usability pass was run for this release.
+
+The GitHub Actions matrix now runs on push. It passes on macOS, Linux, and Windows with Node 22, 24, and 26. On Windows, the POSIX file-mode assertions, the PTY test, and the capture step are skipped: Windows has no permission bits, and node-pty cannot attach a console on GitHub's Windows runners.

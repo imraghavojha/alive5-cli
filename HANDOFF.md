@@ -102,3 +102,4 @@ This pass made the UX changes from the terminal UX review and deliberately left 
 - **Conversations:** messages and transcripts are threads with a chat-style transcript and `r` to reply.
 - **Compose:** channel and teammate are form fields; pickers search as you type; To can search contacts; the last sender is remembered in `recent.json`.
 - **Navigation:** Home shows recent threads, `Ctrl+K` searches every action, and the mouse selects, opens, and scrolls.
+- **CI:** the Actions matrix has now run and passes on all nine OS/Node combinations; Windows skips the POSIX-mode and PTY checks. This supersedes item 24's note that the matrix had never run.
