@@ -5,9 +5,14 @@ Output docs/media/demo.gif
 Set Shell "bash"
 Set FontFamily "JetBrains Mono"
 Set FontSize 16
-Set Width 1280
-Set Height 760
+Set Width 1340
+Set Height 860
 Set Padding 20
+Set WindowBar Colorful
+Set WindowBarSize 40
+Set BorderRadius 12
+Set Margin 32
+Set MarginFill "#EB5124"
 Set TypingSpeed 90ms
 Set Theme { "name": "Alive5", "background": "#111011", "foreground": "#e4e4e7", "cursor": "#eb5124", "selection": "#343033", "black": "#111011", "red": "#eb5124", "green": "#28c840", "yellow": "#febc2e", "blue": "#7aa2f7", "magenta": "#ff936b", "cyan": "#a09a95", "white": "#e4e4e7", "brightBlack": "#6d6669", "brightRed": "#ff936b", "brightGreen": "#28c840", "brightYellow": "#febc2e", "brightBlue": "#7aa2f7", "brightMagenta": "#ff936b", "brightCyan": "#a09a95", "brightWhite": "#ffffff" }
 

@@ -1,15 +1,14 @@
-<p align="center">
-  <img src="docs/media/banner.png" width="720" alt="Alive5 CLI: a chat-bubble mascot peeking around a terminal window">
-</p>
+# Alive5 CLI
 
-<p align="center">
-  Read conversations, reply, and send texts from your terminal.<br>
-  The same commands return clean JSON for scripts and AI agents.
-</p>
+<img src="docs/media/hero.png" width="500" alt="The alive5 wordmark beside an orange 3D chat bubble with a terminal prompt">
 
-<p align="center">
-  <img src="docs/media/demo.gif" width="800" alt="The workspace: Home, a conversation, a reply, and contact search">
-</p>
+![version 0.5.0](https://img.shields.io/badge/version-0.5.0-EB5124)
+![Node.js 22 or newer](https://img.shields.io/badge/node-%E2%89%A5%2022-3c873a)
+![macOS, Linux, and Windows](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555)
+
+Read conversations, reply, and send texts from your terminal. The same commands return clean JSON for scripts and AI agents.
+
+<img src="docs/media/demo.gif" width="800" alt="The workspace: Home, a conversation, a reply, and contact search">
 
 ## Installation
 
