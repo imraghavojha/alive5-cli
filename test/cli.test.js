@@ -21,6 +21,8 @@ const run = (args) =>
     },
   });
 const response = (body) => new Response(JSON.stringify(body));
+// Windows has no POSIX permission bits, so file modes are only checked elsewhere.
+const posixModes = process.platform !== 'win32';
 
 test('agent discovery and parser errors emit exactly one JSON document', () => {
   for (const args of [
@@ -234,7 +236,7 @@ test('credentials are private, replace atomically, and logout removes only saved
   process.env.ALIVE5_CONFIG_DIR = dir;
   try {
     await saveConfig({ apiKey: 'test-key' });
-    assert.equal((await stat(join(dir, 'credentials.json'))).mode & 0o777, 0o600);
+    if (posixModes) assert.equal((await stat(join(dir, 'credentials.json'))).mode & 0o777, 0o600);
     assert.equal((await config()).apiKey, 'test-key');
     await saveConfig({ apiKey: 'next' });
     assert.equal(JSON.parse(await readFile(join(dir, 'credentials.json'), 'utf8')).apiKey, 'next');
@@ -291,7 +293,7 @@ test('agents discover, preview, save, and read appearance without credentials or
     assert.equal(command('appearance', 'set', '--effect', 'invalid').status, 2);
     assert.equal(command('appearance', 'set').status, 2);
     assert.equal(await readFile(join(dir, 'appearance.json'), 'utf8'), before);
-    assert.equal((await stat(join(dir, 'appearance.json'))).mode & 0o777, 0o600);
+    if (posixModes) assert.equal((await stat(join(dir, 'appearance.json'))).mode & 0o777, 0o600);
   } finally {
     await rm(dir, { recursive: true, force: true });
   }

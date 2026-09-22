@@ -500,79 +500,86 @@ test('appearance controls select logos and stop motion', async () => {
   }
 });
 
-test('PTY restores the shell, handles Escape and multiline paste without submitting', async () => {
-  await preparePty();
-  const term = new headless.Terminal({ cols: 100, rows: 36, allowProposedApi: true });
-  const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' };
-  delete env.NO_COLOR;
-  const p = spawn(process.execPath, ['scripts/tui-demo.mjs'], {
-    cols: 100,
-    rows: 36,
-    cwd: process.cwd(),
-    env,
-  });
-  let output = '';
-  const exited = new Promise((r) => p.onExit(r));
-  p.onData((d) => {
-    output += d;
-    term.write(d);
-  });
-  const text = () =>
-    Array.from(
-      { length: 36 },
-      (_, i) => term.buffer.active.getLine(i)?.translateToString(true) || '',
-    ).join('\n');
-  const until = async (pattern) => {
-    for (let i = 0; i < 100; i++) {
-      await sleep(50);
-      if (text().includes(pattern)) return;
+// node-pty cannot attach a console on GitHub's Windows runners.
+const ptySkip = process.platform === 'win32' && 'node-pty needs an attachable console';
+
+test(
+  'PTY restores the shell, handles Escape and multiline paste without submitting',
+  { skip: ptySkip },
+  async () => {
+    await preparePty();
+    const term = new headless.Terminal({ cols: 100, rows: 36, allowProposedApi: true });
+    const env = { ...process.env, TERM: 'xterm-256color', COLORTERM: 'truecolor' };
+    delete env.NO_COLOR;
+    const p = spawn(process.execPath, ['scripts/tui-demo.mjs'], {
+      cols: 100,
+      rows: 36,
+      cwd: process.cwd(),
+      env,
+    });
+    let output = '';
+    const exited = new Promise((r) => p.onExit(r));
+    p.onData((d) => {
+      output += d;
+      term.write(d);
+    });
+    const text = () =>
+      Array.from(
+        { length: 36 },
+        (_, i) => term.buffer.active.getLine(i)?.translateToString(true) || '',
+      ).join('\n');
+    const until = async (pattern) => {
+      for (let i = 0; i < 100; i++) {
+        await sleep(50);
+        if (text().includes(pattern)) return;
+      }
+      throw new Error('Terminal did not show ' + pattern + '\n' + text());
+    };
+    try {
+      await until('Compose a text');
+      assert.equal(term.buffer.active.type, 'alternate');
+      p.write('a');
+      await until('Save appearance');
+      p.write('\x1b');
+      await until('Compose a text');
+      p.write('1\r');
+      await until('Review before sending.');
+      // Two demo channels: Enter opens each empty picker, Enter chooses.
+      p.write('\r');
+      await until('Choose a sending channel');
+      p.write('\r');
+      await until('Review before sending.');
+      p.write('\r');
+      await until('This teammate will own the message.');
+      p.write('\r');
+      await until('Review before sending.');
+      p.write('+15555550101\r');
+      await sleep(100);
+      p.write('\x1b[200~Hello\nfrom a pasted message\x1b[201~');
+      await until('from a pasted message');
+      assert.equal(text().includes('Review your message'), false);
+      p.write('\r');
+      await until('Review your message');
+      assert.equal(text().includes('Nothing has been sent yet.'), true);
+      p.resize(64, 24);
+      term.resize(64, 24);
+      await sleep(150);
+      assert.equal(term.buffer.active.type, 'alternate');
+      p.write('q');
+      const result = await exited;
+      assert.equal(result.exitCode, 0);
+      await new Promise((r) => term.write('', r));
+      assert.equal(term.buffer.active.type, 'normal');
+      assert.ok(output.includes('\x1b[?25h'));
+      assert.ok(output.includes('\x1b[?2004l'));
+      assert.ok(output.includes('\x1b[?1000l'));
+      assert.equal(output.includes('\n'), false);
+    } finally {
+      p.kill();
+      term.dispose();
     }
-    throw new Error('Terminal did not show ' + pattern + '\n' + text());
-  };
-  try {
-    await until('Compose a text');
-    assert.equal(term.buffer.active.type, 'alternate');
-    p.write('a');
-    await until('Save appearance');
-    p.write('\x1b');
-    await until('Compose a text');
-    p.write('1\r');
-    await until('Review before sending.');
-    // Two demo channels: Enter opens each empty picker, Enter chooses.
-    p.write('\r');
-    await until('Choose a sending channel');
-    p.write('\r');
-    await until('Review before sending.');
-    p.write('\r');
-    await until('This teammate will own the message.');
-    p.write('\r');
-    await until('Review before sending.');
-    p.write('+15555550101\r');
-    await sleep(100);
-    p.write('\x1b[200~Hello\nfrom a pasted message\x1b[201~');
-    await until('from a pasted message');
-    assert.equal(text().includes('Review your message'), false);
-    p.write('\r');
-    await until('Review your message');
-    assert.equal(text().includes('Nothing has been sent yet.'), true);
-    p.resize(64, 24);
-    term.resize(64, 24);
-    await sleep(150);
-    assert.equal(term.buffer.active.type, 'alternate');
-    p.write('q');
-    const result = await exited;
-    assert.equal(result.exitCode, 0);
-    await new Promise((r) => term.write('', r));
-    assert.equal(term.buffer.active.type, 'normal');
-    assert.ok(output.includes('\x1b[?25h'));
-    assert.ok(output.includes('\x1b[?2004l'));
-    assert.ok(output.includes('\x1b[?1000l'));
-    assert.equal(output.includes('\n'), false);
-  } finally {
-    p.kill();
-    term.dispose();
-  }
-});
+  },
+);
 
 test('eight logo previews are distinct, persist on save, and migrate old preferences', async () => {
   const previous = process.env.ALIVE5_CONFIG_DIR;

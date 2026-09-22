@@ -21,4 +21,6 @@ jobs:
       - run: npm ci
       - run: npm run check
       - run: node scripts/package-smoke.mjs
-      - run: npm run capture -- .local/ci-capture 80 24
+      # node-pty cannot attach a console on GitHub's Windows runners.
+      - if: runner.os != 'Windows'
+        run: npm run capture -- .local/ci-capture 80 24
