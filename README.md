@@ -2,9 +2,7 @@
 
 <img src="docs/media/hero.png" width="500" alt="The alive5 wordmark beside an orange 3D chat bubble with a terminal prompt">
 
-![version 0.5.0](https://img.shields.io/badge/version-0.5.0-EB5124)
-![Node.js 22 or newer](https://img.shields.io/badge/node-%E2%89%A5%2022-3c873a)
-![macOS, Linux, and Windows](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555)
+![version 0.5.0](https://img.shields.io/badge/version-0.5.0-EB5124) ![Node.js 22 or newer](https://img.shields.io/badge/node-%E2%89%A5%2022-3c873a) ![macOS, Linux, and Windows](https://img.shields.io/badge/platform-macOS%20%C2%B7%20Linux%20%C2%B7%20Windows-555)
 
 Read conversations, reply, and send texts from your terminal. The same commands return clean JSON for scripts and AI agents.
 
