@@ -6,7 +6,8 @@ import headless from '@xterm/headless';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Workspace, appearance } from '../src/tui/app.js';
+import { Workspace } from '../src/tui/workspace.js';
+import { appearance } from '../src/storage.js';
 import { theme, Screen } from '../src/tui/screen.js';
 import { sendForm } from '../src/api.js';
 import { preparePty } from '../scripts/pty-helper.mjs';
@@ -39,16 +40,31 @@ test('guided composer requires a separate preview confirmation and preserves edi
   await press(app, 'return');
   assert.equal(app.state.panel.kind, 'preview');
   assert.equal(sends, 0);
+  // Review names every consequential choice, not only the message.
+  const shown = app.state.panel.context.map(([name]) => name);
+  assert.deepEqual(shown, ['Workspace', 'Channel', 'Send as', 'From', 'To']);
+
+  // Back returns to the message field with the draft and the caret position kept.
   await press(app, 'escape');
+  assert.equal(app.state.panel.kind, 'form');
   assert.equal(app.state.panel.values.message, 'Line one\nLine two');
-  await press(app, 'return');
-  await press(app, 'return');
+  assert.equal(app.state.panel.index, 2);
+  assert.equal(sends, 0);
+
   await press(app, 'return');
   assert.equal(app.state.panel.kind, 'preview');
   await press(app, 'return');
   assert.equal(sends, 1);
-  assert.equal(app.state.panel.title, 'Message submitted');
-  app.compose({ from: '+15555550100', to: '+15555550101', channel: 'c', user: 'u' });
+  assert.equal(app.state.panel.kind, 'reader');
+  assert.equal(app.state.panel.title, 'Message accepted');
+
+  app.compose(
+    { channelName: 'Main', userName: 'Avery', channel: 'c', user: 'u' },
+    {
+      from: '+15555550100',
+      to: '+15555550101',
+    },
+  );
   await press(app, 'return');
   await press(app, 'return');
   app.insert('x'.repeat(1601));
@@ -56,6 +72,124 @@ test('guided composer requires a separate preview confirmation and preserves edi
   assert.equal(app.state.panel.kind, 'form');
   assert.equal(app.state.panel.values.message.length, 1601);
   assert.equal(sends, 1);
+});
+
+test('an unknown send result keeps the draft and refuses a second send', async () => {
+  let sends = 0;
+  const app = new Workspace({
+    account: { org_name: 'test' },
+    services: {
+      ...mock,
+      send: async () => {
+        sends++;
+        const e = new Error('The send result is unknown.');
+        e.deliveryUnknown = true;
+        throw e;
+      },
+    },
+  });
+  app.compose(
+    { channelName: 'Main', userName: 'Avery', channel: 'c', user: 'u' },
+    {
+      from: '+15555550100',
+      to: '+15555550101',
+      message: 'Only once',
+    },
+  );
+  await press(app, 'return');
+  await press(app, 'return');
+  await press(app, 'return');
+  assert.equal(app.state.panel.kind, 'preview');
+  await press(app, 'return');
+  assert.equal(sends, 1);
+  assert.equal(app.state.panel.outcome, 'unknown');
+  assert.match(app.state.error, /unknown/);
+  // Another Enter must not send again.
+  await press(app, 'return');
+  assert.equal(sends, 1);
+  // The draft survives deliberate recovery.
+  await press(app, 'escape');
+  assert.equal(app.state.panel.kind, 'form');
+  assert.equal(app.state.panel.values.message, 'Only once');
+});
+
+test('form fields support caret movement, insertion, and deletion', async () => {
+  const app = new Workspace({ account: { org_name: 'test' } });
+  app.compose({ channel: 'c', user: 'u' });
+  app.state.panel.index = 2;
+  app.insert('Hello wrld');
+  const message = () => app.state.panel.values.message;
+  for (let i = 0; i < 3; i++) await press(app, 'left');
+  app.insert('o');
+  assert.equal(message(), 'Hello world');
+  await press(app, 'home');
+  app.insert('> ');
+  assert.equal(message(), '> Hello world');
+  await press(app, 'end');
+  await press(app, 'backspace');
+  assert.equal(message(), '> Hello worl');
+  await app.handleKey('', { name: 'w', ctrl: true });
+  assert.equal(message(), '> Hello ');
+  await press(app, 'home');
+  await press(app, 'delete');
+  assert.equal(message(), ' Hello ');
+  await app.handleKey('', { name: 'u', ctrl: true });
+  assert.equal(message(), '');
+});
+
+test('record lists stay compact, filter loaded rows, and open full detail', async () => {
+  const app = new Workspace({ account: { org_name: 'test' } });
+  const people = [
+    { id: 'c1', firstName: 'Avery', lastName: 'Stone', phone: '+15555550101', email: 'a@x.test' },
+    { id: 'c2', firstName: 'Jordan', lastName: 'Reed', phone: '+15555550102', email: 'j@x.test' },
+  ];
+  app.list('Contacts', 'contacts', people, { page: 1 });
+  const panel = app.state.panel;
+  assert.deepEqual(
+    panel.columns.map((c) => c.header),
+    ['NAME', 'PHONE', 'EMAIL', 'COMPANY'],
+  );
+  // One row per record, rather than a block of internal field labels.
+  assert.equal(panel.rows.length, 2);
+  const text = app.frame(100, 30).plain();
+  assert.ok(text.includes('Avery Stone'));
+  assert.equal(text.includes('firstName'), false);
+
+  await app.handleKey('/');
+  for (const ch of 'jordan') await app.handleKey(ch);
+  assert.equal(app.state.panel.filter, 'jordan');
+  await press(app, 'return');
+  assert.ok(app.frame(100, 30).plain().includes('filter "jordan" on loaded records'));
+  await press(app, 'return');
+  assert.equal(app.state.panel.kind, 'reader');
+  assert.ok(app.state.panel.lines.some((l) => l.startsWith('First name: Jordan')));
+  // Back restores the list with its filter and selection intact.
+  await press(app, 'escape');
+  assert.equal(app.state.panel.kind, 'list');
+  assert.equal(app.state.panel.filter, 'jordan');
+});
+
+test('the shortcut overlay opens and closes without losing the panel underneath', async () => {
+  const app = new Workspace({ account: { org_name: 'test' } });
+  app.reader('Recent messages', ['one', 'two']);
+  await app.handleKey('?');
+  assert.equal(app.state.panel.kind, 'help');
+  assert.ok(app.frame(90, 30).plain().includes('Keyboard shortcuts'));
+  await app.handleKey('?');
+  assert.equal(app.state.panel.kind, 'reader');
+  assert.equal(app.state.panel.title, 'Recent messages');
+});
+
+test('long errors wrap into the footer instead of being clipped', () => {
+  const app = new Workspace({ account: { org_name: 'test' } });
+  app.reader('Contacts', ['one']);
+  app.state.error =
+    'Alive5 rejected the request because the channel identifier does not belong to this workspace, so nothing was sent.';
+  const rows = app.frame(80, 24).plain().split('\n');
+  assert.ok(rows[21].includes('does not belong'));
+  assert.ok(rows[22].includes('nothing was sent.'));
+  // The rule moves up a row so the panel above never shifts.
+  assert.ok(rows[20].trim().startsWith('─'));
 });
 
 test('fixed screen remains bounded on resize and supports internal scrolling', async () => {
@@ -170,7 +304,7 @@ test('PTY restores the shell, handles Escape and multiline paste without submitt
     assert.equal(text().includes('Review your message'), false);
     p.write('\r');
     await until('Review your message');
-    assert.equal(text().includes('Nothing has been sent.'), true);
+    assert.equal(text().includes('Nothing has been sent yet.'), true);
     p.resize(64, 24);
     term.resize(64, 24);
     await sleep(150);
@@ -233,7 +367,7 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
     assert.deepEqual(saved, { logo: 'frame', motion: 'off', effect: 'breathe' });
     assert.equal(JSON.parse(await readFile(join(dir, 'appearance.json'))).logo, 'frame');
     const restarted = new Workspace({ settings: saved });
-    assert.ok(restarted.frame(80, 24).plain().includes('│   Alive 5   │'));
+    assert.ok(restarted.frame(80, 24).plain().includes('│   Alive5   │'));
     await writeFile(join(dir, 'appearance.json'), '{broken');
     assert.equal((await appearance()).logo, 'frame');
   } finally {
@@ -266,7 +400,7 @@ test('Cosmos preserves the label and content while comets and the moon move', ()
     });
     const snapshots = [2000, 6500, 13000].map((elapsed) => {
       const screen = app.frame(width, 24, app.replayAt + elapsed);
-      assert.ok(screen.plain().includes('│   Alive 5   │'));
+      assert.ok(screen.plain().includes('│   Alive5   │'));
       assert.ok(screen.plain().includes(' /(___)/'));
       return screen.rows(24);
     });

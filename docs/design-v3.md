@@ -1,11 +1,11 @@
 # Terminal design, v0.3
 
-The earlier T3 thread was read before implementation. V3 follows the user's latest direction: a minimal layout and eight selectable Alive 5 wordmarks. The official raster silhouette is no longer the runtime logo.
+The earlier T3 thread was read before implementation. V3 follows the user's latest direction: a minimal layout and eight selectable Alive5 wordmarks. The official raster silhouette is no longer the runtime logo.
 
 ## Research and choices
 
 - [Command Line Interface Guidelines](https://clig.dev/) informed concise output, discoverable commands, terminal detection, and preserving machine-readable output. The guide explicitly excludes full-screen applications, so it is not treated as a full-screen layout specification.
-- [Stripe CLI](https://github.com/stripe/stripe-cli) provides a reference for focused commands, help, and explicit flags. Slash is an original Alive 5 rendition using FIGlet Small Slant lettering. We did not verify that Stripe currently ships the slash logo the user remembers.
+- [Stripe CLI](https://github.com/stripe/stripe-cli) provides a reference for focused commands, help, and explicit flags. Slash is an original Alive5 rendition using FIGlet Small Slant lettering. We did not verify that Stripe currently ships the slash logo the user remembers.
 - [Bubble Tea](https://github.com/charmbracelet/bubbletea) informed keeping input, state, and rendering separate. The existing Node cell renderer remains in place; this release does not add a production TUI framework.
 - [GitHub's animated banner engineering article](https://github.blog/engineering/from-pixels-to-characters-the-engineering-behind-github-copilot-clis-animated-ascii-banner/) informed treating a banner as terminal cells with bounded animation work and terminal compatibility in mind.
 

@@ -130,6 +130,8 @@ if (process.env.CAPTURE_LOGOS) {
     await capture(`logo-${i}`);
   }
 }
+
+// Compose: channel, teammate, then the message itself.
 pty.write('\x1b');
 await sleep(150);
 pty.write('1\r');
@@ -137,23 +139,56 @@ await sleep(150);
 pty.write('\r');
 await sleep(150);
 pty.write('\r');
-await sleep(150);
+await sleep(200);
 await capture('03-compose');
 pty.write('\r+15555550101\rYour appointment is confirmed for tomorrow at 10. See you then!');
-await sleep(150);
+await sleep(200);
 await capture('03b-message');
+// Caret editing: move back into the sentence and correct a word in place.
+for (let i = 0; i < 12; i++) pty.write('\x1b[D');
+await sleep(200);
+await capture('03c-editing');
 pty.write('\r');
-await sleep(150);
+await sleep(200);
 await capture('04-preview');
-pty.write('\x1b');
-await sleep(100);
-pty.write('\x1b');
-await sleep(100);
+
+// Escape steps back one panel at a time, keeping each draft, so returning Home
+// from the preview walks back through the form and both selections.
+const home = async () => {
+  for (let i = 0; i < 6; i++) {
+    pty.write('\x1b');
+    await sleep(90);
+  }
+};
+
+// Contacts: a compact list, a filter, then full detail for one record.
+await home();
 pty.write('4\r');
 await sleep(150);
-pty.write('\x1b[B\r');
-await sleep(200);
+pty.write('\r');
+await sleep(300);
 await capture('05-contacts');
+pty.write('/Jordan');
+await sleep(250);
+await capture('05b-filter');
+pty.write('\r\r');
+await sleep(250);
+await capture('05c-detail');
+pty.write('\x1b');
+await sleep(150);
+
+// The shortcut overlay, reachable from any panel.
+pty.write('?');
+await sleep(250);
+await capture('06-shortcuts');
+await home();
+
+// Recent messages, as a table rather than a record dump.
+pty.write('2\r');
+await sleep(200);
+pty.write('\r');
+await sleep(300);
+await capture('07-messages');
 pty.write('\x1b');
 await sleep(100);
 const idleStart = bytes;

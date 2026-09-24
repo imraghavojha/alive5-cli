@@ -4,19 +4,13 @@ import { spawnSync } from 'node:child_process';
 import { mkdtemp, readFile, stat, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import {
-  request,
-  unwrap,
-  clean,
-  dateRange,
-  phone,
-  saveConfig,
-  config,
-  logout,
-  CliError,
-} from '../src/core.js';
-import { send, conversation, conversations, contacts, messages } from '../src/api.js';
-import { safe } from '../src/ui.js';
+import { request, unwrap, clean } from '../src/http.js';
+import { dateRange, phone } from '../src/validate.js';
+import { saveConfig, config, logout } from '../src/storage.js';
+import { CliError } from '../src/errors.js';
+import { send, conversations, contacts, messages } from '../src/api.js';
+import { conversation } from '../src/normalize.js';
+import { safe } from '../src/output.js';
 const run = (args) =>
   spawnSync(process.execPath, ['bin/alive5.js', ...args], {
     encoding: 'utf8',
@@ -299,4 +293,82 @@ test('agents discover, preview, save, and read appearance without credentials or
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('parent commands name the missing subcommand instead of dumping help', () => {
+  for (const name of ['auth', 'sms', 'channels', 'conversations', 'appearance']) {
+    const r = run([name]);
+    assert.equal(r.status, 2);
+    const j = JSON.parse(r.stdout);
+    assert.equal(j.error.code, 'SUBCOMMAND_REQUIRED');
+    assert.equal(j.error.message.includes('outputHelp'), false);
+    assert.match(j.error.message, new RegExp(`alive5 ${name} needs a subcommand`));
+    assert.ok(j.error.details.subcommands.length > 0);
+  }
+});
+
+test('shell completions cover the real command tree', () => {
+  for (const shell of ['bash', 'zsh', 'fish']) {
+    const r = run(['completion', shell]);
+    assert.equal(r.status, 0);
+    assert.ok(r.stdout.includes('alive5'));
+    assert.ok(r.stdout.includes('sms'));
+    assert.ok(r.stdout.includes('dry-run'));
+  }
+  assert.equal(run(['completion', 'tcsh']).status, 2);
+});
+
+test('doctor reports local state and never any part of a key', () => {
+  const r = spawnSync(process.execPath, ['bin/alive5.js', 'doctor', '--json'], {
+    encoding: 'utf8',
+    env: { ...process.env, ALIVE5_API_KEY: 'super-secret-value' },
+  });
+  assert.equal(r.status, 0);
+  assert.equal(r.stdout.includes('super-secret-value'), false);
+  const d = JSON.parse(r.stdout).data;
+  assert.equal(d.authentication.environmentKey, true);
+  assert.equal(d.networkChecked, false);
+  assert.equal(typeof d.nodeSupported, 'boolean');
+});
+
+test('help and schema expose examples, authentication, and exit codes', () => {
+  const help = run(['sms', 'send', '--help']);
+  assert.ok(help.stdout.includes('Examples:'));
+  assert.ok(help.stdout.includes('--dry-run'));
+  const schema = JSON.parse(run(['schema']).stdout).data;
+  assert.equal(schema.authentication.environment, 'ALIVE5_API_KEY');
+  assert.equal(schema.exitCodes['3'], 'authentication');
+  assert.ok(schema.sideEffects.writes.includes('sms send'));
+  assert.ok(schema.commands.commands.some((c) => c.name === 'doctor'));
+  const send = JSON.parse(run(['schema', 'sms', 'send']).stdout).data;
+  assert.ok(send.commands.options.find((o) => o.flag === '--to <number>').required);
+});
+
+test('the version comes from one source', async () => {
+  const { VERSION } = await import('../src/meta.js');
+  const pkg = JSON.parse(await readFile(new URL('../package.json', import.meta.url), 'utf8'));
+  assert.equal(VERSION, pkg.version);
+  assert.equal(JSON.parse(run(['schema']).stdout).data.version, pkg.version);
+});
+
+test('a local dry run says so and names no delivery promise', () => {
+  const r = run([
+    'sms',
+    'send',
+    '--from',
+    '+15555550100',
+    '--to',
+    '+15555550101',
+    '--channel',
+    'c',
+    '--user',
+    'u',
+    '--message',
+    'hello',
+    '--dry-run',
+  ]);
+  const d = JSON.parse(r.stdout).data;
+  assert.equal(d.validated, 'locally');
+  assert.equal(d.preview, true);
+  assert.equal(Object.hasOwn(d, 'deliveryConfirmed'), false);
 });

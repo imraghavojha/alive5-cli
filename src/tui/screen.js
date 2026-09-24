@@ -1,4 +1,7 @@
-import stringWidth from 'string-width';
+// The cell buffer. A Screen is a plain grid of styled cells that can be turned
+// into ANSI rows; it has no knowledge of panels, keys, or the real terminal.
+
+import { sanitize, graphemes, clip, stringWidth } from './text.js';
 
 export const theme = {
   bg: '#111011',
@@ -10,59 +13,12 @@ export const theme = {
   orange: '#eb5124',
   hot: '#ff936b',
   selected: '#242426',
-  gray: '#48484a',
 };
-export const sanitize = (value) =>
-  String(value ?? '')
-    .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')
-    .replace(/\t/g, '  ');
-const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
-export const graphemes = (text) =>
-  !text
-    ? []
-    : text.length < 2
-      ? [text]
-      : /^[\x20-\x7e]*$/.test(text)
-        ? text.split('')
-        : [...segmenter.segment(text)].map((x) => x.segment);
-export function clip(text, width) {
-  let out = '',
-    used = 0;
-  for (const char of graphemes(sanitize(text).replace(/\n/g, ' '))) {
-    const n = stringWidth(char);
-    if (used + n > width) break;
-    out += char;
-    used += n;
-  }
-  return out;
-}
-export function wrap(text, width) {
-  const lines = [];
-  for (const paragraph of sanitize(text).split('\n')) {
-    let line = '';
-    for (const word of paragraph.split(' ')) {
-      if (stringWidth(line + (line ? ' ' : '') + word) <= width) {
-        line += (line ? ' ' : '') + word;
-        continue;
-      }
-      if (line) lines.push(line);
-      line = '';
-      for (const char of graphemes(word)) {
-        if (stringWidth(line + char) > width) {
-          lines.push(line);
-          line = '';
-        }
-        line += char;
-      }
-    }
-    lines.push(line);
-  }
-  return lines;
-}
+
 export const mix = (a, b, t) => {
   const rgb = (c) => [1, 3, 5].map((i) => parseInt(c.slice(i, i + 2), 16));
-  const x = rgb(a),
-    y = rgb(b);
+  const x = rgb(a);
+  const y = rgb(b);
   return (
     '#' +
     x
@@ -74,10 +30,13 @@ export const mix = (a, b, t) => {
       .join('')
   );
 };
+
 const sgrCache = new Map();
+
 function color(hex, background, depth) {
   const key = hex + background + depth;
-  if (sgrCache.has(key)) return sgrCache.get(key);
+  const cached = sgrCache.get(key);
+  if (cached) return cached;
   const rgb = [1, 3, 5].map((i) => parseInt(hex.slice(i, i + 2), 16));
   const code =
     depth === 24
@@ -86,6 +45,7 @@ function color(hex, background, depth) {
   sgrCache.set(key, code);
   return code;
 }
+
 export class Screen {
   constructor(width, height) {
     this.width = width;
@@ -102,6 +62,7 @@ export class Screen {
       const w = stringWidth(ch);
       if (x >= 0 && x + w <= this.width) {
         this.cells[y][x] = { ch, fg, bg, bold };
+        // A double-width glyph owns the next cell, which must stay empty.
         if (w === 2) this.cells[y][x + 1] = { ch: '', fg, bg, bold };
       }
       x += w;
@@ -121,8 +82,8 @@ export class Screen {
   rows(depth = 24) {
     return this.cells.map((row, index) => {
       if (this.rowCache[index]?.depth === depth) return this.rowCache[index].text;
-      let out = '',
-        prev = '';
+      let out = '';
+      let prev = '';
       for (const cell of row) {
         const style = depth
           ? `\x1b[${color(cell.fg, false, depth)};${color(cell.bg, true, depth)};${cell.bold ? 1 : 22}m`
@@ -133,6 +94,7 @@ export class Screen {
           out += style;
           prev = style;
         }
+        // Without color, a half block on a tinted background would vanish.
         out += !depth && cell.ch === '▀' && cell.bg !== theme.bg ? '█' : cell.ch;
       }
       const text = out + '\x1b[0m';
@@ -142,42 +104,5 @@ export class Screen {
   }
   plain() {
     return this.cells.map((row) => row.map((c) => c.ch).join('')).join('\n');
-  }
-}
-export class Terminal {
-  constructor(output = process.stdout) {
-    this.output = output;
-    this.previous = [];
-    this.depth =
-      'NO_COLOR' in process.env
-        ? 0
-        : process.env.COLORTERM === 'truecolor' || process.env.COLORTERM === '24bit'
-          ? 24
-          : 8;
-    this.blocked = false;
-    this.closed = false;
-  }
-  open() {
-    this.output.write('\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?2004h');
-  }
-  render(screen) {
-    if (this.blocked || this.closed) return;
-    const rows = screen.rows(this.depth);
-    let output = '';
-    rows.forEach((row, i) => {
-      if (this.previous[i] !== row) output += `\x1b[${i + 1};1H${row}`;
-    });
-    if (!output) return;
-    this.previous = rows;
-    this.blocked = !this.output.write('\x1b[?2026h' + output + '\x1b[?2026l');
-    if (this.blocked)
-      this.output.once('drain', () => {
-        this.blocked = false;
-      });
-  }
-  close() {
-    if (this.closed) return;
-    this.closed = true;
-    this.output.write('\x1b[0m\x1b[?2004l\x1b[?7h\x1b[?25h\x1b[?1049l');
   }
 }
