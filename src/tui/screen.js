@@ -12,7 +12,39 @@ export const theme = {
   line: '#363237',
   orange: '#eb5124',
   hot: '#ff936b',
-  selected: '#242426',
+  selected: '#343033',
+};
+
+export const themes = {
+  dark: theme,
+  light: {
+    bg: '#faf8f4',
+    panel: '#f0ede8',
+    ink: '#262326',
+    muted: '#5b5558',
+    faint: '#696268',
+    line: '#c8c1be',
+    orange: '#a63813',
+    hot: '#9f2d13',
+    selected: '#dac8bb',
+  },
+  terminal: {
+    ...theme,
+    panel: theme.bg,
+    selected: theme.bg,
+    orange: '#ff936b',
+  },
+  'high-contrast': {
+    bg: '#000000',
+    panel: '#0d0d0d',
+    ink: '#ffffff',
+    muted: '#f0f0f0',
+    faint: '#e0e0e0',
+    line: '#ffffff',
+    orange: '#ffb36b',
+    hot: '#ffcc99',
+    selected: '#505050',
+  },
 };
 
 export const mix = (a, b, t) => {
@@ -47,37 +79,70 @@ function color(hex, background, depth) {
 }
 
 export class Screen {
-  constructor(width, height) {
+  constructor(width, height, themeName = 'dark') {
     this.width = width;
     this.height = height;
+    this.themeName = themeName;
+    this.theme = themes[themeName] || theme;
     this.rowCache = [];
     this.cells = Array.from({ length: height }, () =>
-      Array.from({ length: width }, () => ({ ch: ' ', fg: theme.ink, bg: theme.bg, bold: false })),
+      Array.from({ length: width }, () => ({
+        ch: ' ',
+        fg: this.foreground(this.theme.ink),
+        bg: this.background(this.theme.bg),
+        bold: false,
+        reverse: false,
+      })),
     );
   }
-  put(x, y, text, fg = theme.ink, bg = theme.bg, bold = false) {
+  foreground(color) {
+    return this.themeName === 'terminal' && color === this.theme.ink ? null : color;
+  }
+  background(color) {
+    return this.themeName === 'terminal' && color === this.theme.bg ? null : color;
+  }
+  put(x, y, text, fg = this.theme.ink, bg = this.theme.bg, bold = false) {
     if (y < 0 || y >= this.height) return;
     this.rowCache[y] = null;
     for (const ch of graphemes(sanitize(text).replace(/\n/g, ' '))) {
       const w = stringWidth(ch);
       if (x >= 0 && x + w <= this.width) {
-        this.cells[y][x] = { ch, fg, bg, bold };
+        this.cells[y][x] = {
+          ch,
+          fg: this.foreground(fg),
+          bg: this.background(bg),
+          bold,
+          reverse: false,
+        };
         // A double-width glyph owns the next cell, which must stay empty.
-        if (w === 2) this.cells[y][x + 1] = { ch: '', fg, bg, bold };
+        if (w === 2)
+          this.cells[y][x + 1] = {
+            ch: '',
+            fg: this.foreground(fg),
+            bg: this.background(bg),
+            bold,
+            reverse: false,
+          };
       }
       x += w;
       if (x >= this.width) break;
     }
   }
-  fill(x, y, w, h, bg = theme.panel) {
+  fill(x, y, w, h, bg = this.theme.panel) {
     for (let row = y; row < y + h; row++)
-      this.put(x, row, ' '.repeat(Math.max(0, w)), theme.ink, bg);
+      this.put(x, row, ' '.repeat(Math.max(0, w)), this.theme.ink, bg);
   }
-  line(x, y, w, fg = theme.line) {
+  line(x, y, w, fg = this.theme.line) {
     this.put(x, y, '─'.repeat(Math.max(0, w)), fg);
   }
-  text(x, y, w, text, fg = theme.ink, bg = theme.bg, bold = false) {
+  text(x, y, w, text, fg = this.theme.ink, bg = this.theme.bg, bold = false) {
     this.put(x, y, clip(text, w), fg, bg, bold);
+  }
+  reverse(x, y, width) {
+    if (y < 0 || y >= this.height) return;
+    this.rowCache[y] = null;
+    for (let i = Math.max(0, x); i < Math.min(this.width, x + width); i++)
+      this.cells[y][i].reverse = true;
   }
   rows(depth = 24) {
     return this.cells.map((row, index) => {
@@ -86,16 +151,17 @@ export class Screen {
       let prev = '';
       for (const cell of row) {
         const style = depth
-          ? `\x1b[${color(cell.fg, false, depth)};${color(cell.bg, true, depth)};${cell.bold ? 1 : 22}m`
+          ? `\x1b[${cell.fg == null ? '39' : color(cell.fg, false, depth)};${cell.bg == null ? '49' : color(cell.bg, true, depth)};${cell.bold ? 1 : 22};${cell.reverse ? 7 : 27}m`
           : cell.bold
-            ? '\x1b[1m'
-            : '\x1b[22m';
+            ? `\x1b[1;${cell.reverse ? 7 : 27}m`
+            : `\x1b[22;${cell.reverse ? 7 : 27}m`;
         if (style !== prev) {
           out += style;
           prev = style;
         }
         // Without color, a half block on a tinted background would vanish.
-        out += !depth && cell.ch === '▀' && cell.bg !== theme.bg ? '█' : cell.ch;
+        out +=
+          !depth && cell.ch === '▀' && cell.bg !== this.background(this.theme.bg) ? '█' : cell.ch;
       }
       const text = out + '\x1b[0m';
       this.rowCache[index] = { depth, text };

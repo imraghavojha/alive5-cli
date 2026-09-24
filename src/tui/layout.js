@@ -55,7 +55,9 @@ const headerRows = (logo) => (logo ? Math.min(10, logoById(logo).lines.length + 
 
 export function layout(width, height, kind = 'home', logo = null) {
   const left = 3;
-  const w = Math.min(78, width - left * 2);
+  const splitList = kind === 'list' && width >= 100;
+  const w = Math.min(splitList ? 154 : 78, width - left * 2);
+  const listWidth = Math.floor(w * 0.58);
   const header = headerRows(showsBanner(kind) ? logo : null);
   const top = header + 1;
   // Three rows at the bottom: a rule, the status line, and the shortcut line.
@@ -71,5 +73,7 @@ export function layout(width, height, kind = 'home', logo = null) {
     bottom,
     w,
     h: bottom - top,
+    list: splitList ? { x: left, w: listWidth } : null,
+    detail: splitList ? { x: left + listWidth + 2, w: w - listWidth - 2 } : null,
   };
 }

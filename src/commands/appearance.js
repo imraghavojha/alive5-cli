@@ -8,6 +8,7 @@ const DESCRIPTIONS = {
   logo: 'set logo; frame is Label, variation 8',
   motion: 'set motion; full is continuous, subtle is entrance only',
   effect: 'set animation effect',
+  theme: 'set dark, light, terminal-native, or high-contrast colors',
 };
 
 export function register(program, { write }) {
@@ -24,7 +25,7 @@ export function register(program, { write }) {
 
   style
     .command('get')
-    .description('Read saved logo, motion, and effect settings')
+    .description('Read saved logo, motion, effect, and theme settings')
     .action(async () => write(await appearance()));
 
   const set = style.command('set').description('Save local appearance settings without prompts');
@@ -38,7 +39,9 @@ export function register(program, { write }) {
         .map((key) => [key, options[key]]),
     );
     if (!Object.keys(changes).length)
-      throw usage('Specify --logo, --motion, or --effect. Run alive5 appearance set --help.');
+      throw usage(
+        'Specify --logo, --motion, --effect, or --theme. Run alive5 appearance set --help.',
+      );
     const settings = { ...(await appearance()), ...changes };
     if (!options.dryRun) await saveAppearance(settings);
     write({ ...settings, saved: !options.dryRun });

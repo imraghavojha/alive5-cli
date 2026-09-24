@@ -6,8 +6,8 @@ import { CliError } from '../errors.js';
 import { config, saveConfig, saveAppearance, appearanceDefaults } from '../storage.js';
 import { validateKey, dateRange, MESSAGE_LIMIT } from '../validate.js';
 import { displayName } from '../normalize.js';
-import { sanitize } from './text.js';
-import { theme } from './screen.js';
+import { sanitize, wrap } from './text.js';
+import { visibleRows } from './panels.js';
 import { drawLogo, logos } from './logo.js';
 import { view, SHORTCUTS } from './view.js';
 import { layout, navigation, showsBanner } from './layout.js';
@@ -90,6 +90,10 @@ export class Workspace {
 
   contentWidth() {
     return layout(this.width, this.height, this.state.panel.kind, this.state.logo).w;
+  }
+
+  contentHeight() {
+    return layout(this.width, this.height, this.state.panel.kind, this.state.logo).h;
   }
 
   // ---- panel constructors ------------------------------------------------
@@ -251,8 +255,8 @@ export class Workspace {
 
   async saveAppearance() {
     await this.run('Saving appearance', async () => {
-      const { logo, motion, effect } = this.state;
-      await saveAppearance({ logo, motion, effect });
+      const { logo, motion, effect, theme } = this.state;
+      await saveAppearance({ logo, motion, effect, theme });
       this.state.notice = 'Appearance saved.';
     });
   }
@@ -275,8 +279,11 @@ export class Workspace {
     } else if (panel.index === 2) {
       this.state.effect = step(['signal', 'breathe', 'orbit', 'cosmos'], this.state.effect);
       this.replay();
-    } else if (panel.index === 3) this.replay();
-    else if (panel.index === 4) await this.saveAppearance();
+    } else if (panel.index === 3) {
+      this.state.theme = step(['dark', 'light', 'terminal', 'high-contrast'], this.state.theme);
+      this.replay();
+    } else if (panel.index === 4) this.replay();
+    else if (panel.index === 5) await this.saveAppearance();
     this.changed();
   }
 
@@ -349,6 +356,16 @@ export class Workspace {
   frame(width, height, now = performance.now()) {
     this.width = width;
     this.height = height;
+    const panel = this.state.panel;
+    const l = layout(width, height, panel.kind, this.state.logo);
+    if (panel.kind === 'reader') {
+      const count = panel.lines.flatMap((line) => wrap(line, Math.max(10, l.w - 2))).length;
+      panel.scroll = Math.max(0, Math.min(panel.scroll, count - Math.max(1, l.h - 4)));
+    } else if (panel.kind === 'help') {
+      panel.scroll = Math.max(0, Math.min(panel.scroll, panel.lines.length - Math.max(1, l.h - 4)));
+    } else if (panel.kind === 'list') {
+      panel.index = Math.max(0, Math.min(panel.index, visibleRows(panel).length - 1));
+    }
     const elapsed = now - this.replayAt;
     this.state.entrance = this.state.motion === 'off' ? 1 : Math.min(1, elapsed / ENTRANCE_MS);
     const cacheKey = `${width}:${height}:${this.revision}`;
@@ -357,9 +374,8 @@ export class Workspace {
       this.cacheKey = cacheKey;
     }
     const screen = this.cachedScreen;
-    const l = layout(width, height, this.state.panel.kind, this.state.logo);
     if (!l.tooSmall && showsBanner(this.state.panel.kind)) {
-      screen.fill(3, 3, l.logoWidth, l.logoHeight, theme.bg);
+      screen.fill(3, 3, l.logoWidth, l.logoHeight, screen.theme.bg);
       drawLogo(screen, {
         x: 3,
         y: 3,

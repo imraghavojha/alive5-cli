@@ -68,9 +68,15 @@ export const appearanceChoices = {
   logo: ['type', 'slash', 'outline', 'pixel', 'stipple', 'wire', 'lean', 'frame'],
   motion: ['full', 'subtle', 'off'],
   effect: ['signal', 'breathe', 'orbit', 'cosmos'],
+  theme: ['dark', 'light', 'terminal', 'high-contrast'],
 };
 
-export const appearanceDefaults = { logo: 'frame', motion: 'full', effect: 'cosmos' };
+export const appearanceDefaults = {
+  logo: 'frame',
+  motion: 'subtle',
+  effect: 'cosmos',
+  theme: 'dark',
+};
 
 const APPEARANCE = 'appearance.json';
 

@@ -38,6 +38,7 @@ function build() {
     .option('--timeout <ms>', 'request timeout in milliseconds', '30000')
     .option('--no-color', 'disable color')
     .option('--no-animation', 'disable logo animation')
+    .option('--linear', 'use a line-by-line interactive workspace')
     .option('--no-input', 'never prompt')
     .exitOverride()
     .configureOutput({ writeErr: () => {}, outputError: () => {} })
@@ -76,7 +77,7 @@ function build() {
   for (const registrar of REGISTRARS) registrar.register(program, context);
 
   program.action(async () => {
-    if (context.canPrompt()) await dashboard();
+    if (context.canPrompt()) await dashboard({ linear: program.opts().linear });
     else
       context.write({
         name: 'alive5',
@@ -91,8 +92,16 @@ function build() {
 /** Anything thrown becomes a CliError so the reported code and exit status agree. */
 function toCliError(e) {
   if (e instanceof CliError) return e;
-  if (e instanceof CommanderError)
-    return new CliError('INVALID_ARGUMENT', e.message.replace(/^error: /, ''), EXIT.usage);
+  if (e instanceof CommanderError) {
+    const message = e.message.replace(/^error: /, '');
+    return new CliError(
+      'INVALID_ARGUMENT',
+      /too many arguments/i.test(message)
+        ? `${message} Run alive5 --help or alive5 schema.`
+        : message,
+      EXIT.usage,
+    );
+  }
   return new CliError(
     'LOCAL_ERROR',
     e.code === 'ENOENT'

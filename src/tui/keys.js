@@ -46,12 +46,18 @@ export const handlers = {
     const panel = app.state.panel;
     const width = Math.max(10, app.contentWidth() - 2);
     const total = panel.lines.flatMap((t) => wrap(t, width)).length;
-    scroll(panel, str, key, Math.max(0, total - 1));
+    const visible = Math.max(1, app.contentHeight() - 4);
+    scroll(panel, str, key, Math.max(0, total - visible));
     if (str === 'n' && panel.next) return panel.next();
   },
 
   help(app, str, key) {
-    scroll(app.state.panel, str, key, Math.max(0, app.state.panel.lines.length - 1));
+    scroll(
+      app.state.panel,
+      str,
+      key,
+      Math.max(0, app.state.panel.lines.length - Math.max(1, app.contentHeight() - 4)),
+    );
   },
 
   list(app, str, key) {
@@ -70,7 +76,12 @@ export const handlers = {
       panel.filter = '';
     } else if (key.name === 'return' && rows[panel.index]) app.openRecord(rows[panel.index].record);
     else if (str === 'y' && rows[panel.index]) app.copy(rows[panel.index]);
-    else if (str === 'm' && rows[panel.index]) return app.messageRecord(rows[panel.index].record);
+    else if (
+      str === 'm' &&
+      ['contacts', 'conversations'].includes(panel.recordKind) &&
+      rows[panel.index]
+    )
+      return app.messageRecord(rows[panel.index].record);
     else if (str === 'n' && panel.next) return panel.next();
   },
 
@@ -135,11 +146,11 @@ export const handlers = {
     }
     if (str === 'r') return app.replay();
     if (str === ' ') return app.toggleMotion();
-    if (isDown(str, key)) panel.index = cycle(panel.index, 5, 1);
-    else if (isUp(str, key)) panel.index = cycle(panel.index, 5, -1);
-    else if (key.name === 'return' || (key.name === 'right' && panel.index < 3))
+    if (isDown(str, key)) panel.index = cycle(panel.index, 6, 1);
+    else if (isUp(str, key)) panel.index = cycle(panel.index, 6, -1);
+    else if (key.name === 'return' || (key.name === 'right' && panel.index < 4))
       return app.cycleAppearance(1);
-    else if (key.name === 'left' && panel.index < 3) return app.cycleAppearance(-1);
+    else if (key.name === 'left' && panel.index < 4) return app.cycleAppearance(-1);
   },
 };
 

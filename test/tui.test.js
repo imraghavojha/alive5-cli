@@ -6,9 +6,12 @@ import headless from '@xterm/headless';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { Readable, Writable } from 'node:stream';
 import { Workspace } from '../src/tui/workspace.js';
-import { appearance } from '../src/storage.js';
-import { theme, Screen } from '../src/tui/screen.js';
+import { appearance, appearanceDefaults } from '../src/storage.js';
+import { theme, Screen, themes } from '../src/tui/screen.js';
+import { launchLinear } from '../src/tui/linear.js';
+import { wrapWithCaret } from '../src/tui/editor.js';
 import { sendForm } from '../src/api.js';
 import { preparePty } from '../scripts/pty-helper.mjs';
 const mock = {
@@ -137,6 +140,12 @@ test('form fields support caret movement, insertion, and deletion', async () => 
   assert.equal(message(), '');
 });
 
+test('message editing wraps at words while keeping the caret in place', () => {
+  const text = 'See you then!';
+  assert.deepEqual(wrapWithCaret(text, 10, text.length).lines, ['See you', 'then!']);
+  assert.deepEqual(wrapWithCaret(text, 10, text.length).caret, { row: 1, column: 5 });
+});
+
 test('record lists stay compact, filter loaded rows, and open full detail', async () => {
   const app = new Workspace({ account: { org_name: 'test' } });
   const people = [
@@ -222,6 +231,159 @@ test('fixed screen remains bounded on resize and supports internal scrolling', a
   assert.equal(s.cells[1][0].ch, ' ');
 });
 
+test('End then Up moves the reader immediately and resize retains valid scroll', async () => {
+  const app = new Workspace({ account: { org_name: 'test' } });
+  app.reader(
+    'Long reader',
+    Array.from({ length: 90 }, (_, i) => `Line ${i + 1}`),
+  );
+  app.frame(80, 30);
+  await press(app, 'end');
+  const atEnd = app.state.panel.scroll;
+  assert.ok(atEnd > 0);
+  await press(app, 'up');
+  assert.equal(app.state.panel.scroll, atEnd - 1);
+  assert.ok(app.frame(80, 30).plain().includes(`Line ${atEnd}`));
+  app.frame(80, 24);
+  assert.ok(app.state.panel.scroll <= 90 - (app.contentHeight() - 4));
+  app.frame(80, 38);
+  assert.ok(app.state.panel.scroll >= 0);
+});
+
+test('wide lists show selected details beside two readable columns', () => {
+  const app = new Workspace({ account: { org_name: 'test' } });
+  app.list('Contacts', 'contacts', [
+    {
+      id: 'c1',
+      firstName: 'Avery',
+      lastName: 'Stone',
+      phone: '+15555550100',
+      email: 'avery@example.test',
+    },
+  ]);
+  const wide = app.frame(110, 38).plain();
+  assert.ok(wide.includes('SELECTED RECORD'));
+  assert.ok(wide.includes('+15555550100'));
+  assert.ok(wide.includes('avery@example.test'));
+  assert.equal(app.frame(64, 30).plain().includes('SELECTED RECORD'), false);
+});
+
+test('wide conversation details reserve the hint row and compose to nested contact', async () => {
+  const app = new Workspace({ account: { org_name: 'test' }, services: mock });
+  const record = {
+    id: 'thread-1',
+    contact: { firstName: 'Avery', phone: '+15555550101' },
+    messages: Array.from({ length: 30 }, (_, i) => ({ sender: 'Avery', text: `Message ${i + 1}` })),
+  };
+  app.list('Conversations', 'conversations', [record]);
+  const rows = app.frame(110, 38).plain().split('\n');
+  const hint = rows.find((row) => row.includes('Enter for full details'));
+  assert.ok(hint);
+  assert.equal(hint.includes('Message '), false);
+  await app.messageRecord(record);
+  await press(app, 'return');
+  await press(app, 'return');
+  assert.equal(app.state.panel.kind, 'form');
+  assert.equal(app.state.panel.values.to, '+15555550101');
+});
+
+test('narrow message lists keep sender and message visible', () => {
+  const app = new Workspace({ account: { org_name: 'test' } });
+  app.list('Recent messages', 'messages', [
+    { sender: 'Avery', at: '2026-09-13T10:30:00Z', text: 'Appointment confirmed' },
+  ]);
+  const plain = app.frame(40, 24).plain();
+  assert.ok(plain.includes('SENDER'));
+  assert.ok(plain.includes('MESSAGE'));
+  assert.ok(plain.includes('Avery'));
+});
+
+test('fresh appearance is calm, saved motion survives, and native colors use defaults', async () => {
+  const previous = process.env.ALIVE5_CONFIG_DIR;
+  const dir = await mkdtemp(join(tmpdir(), 'alive5-new-appearance-'));
+  process.env.ALIVE5_CONFIG_DIR = dir;
+  try {
+    assert.deepEqual(await appearance(), appearanceDefaults);
+    await writeFile(
+      join(dir, 'appearance.json'),
+      JSON.stringify({ motion: 'full', theme: 'light' }),
+    );
+    assert.equal((await appearance()).motion, 'full');
+    assert.equal((await appearance()).theme, 'light');
+    for (const name of Object.keys(themes)) {
+      const screen = new Screen(10, 2, name);
+      assert.equal(screen.rows(24).length, 2);
+    }
+    const native = new Screen(2, 1, 'terminal');
+    native.reverse(0, 0, 2);
+    assert.match(native.rows(24)[0], /\[39;49;22;7m/);
+  } finally {
+    if (previous === undefined) delete process.env.ALIVE5_CONFIG_DIR;
+    else process.env.ALIVE5_CONFIG_DIR = previous;
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('linear workspace prints ordinary text and never sends without SEND', async () => {
+  let output = '';
+  const sink = new Writable({
+    write(chunk, encoding, done) {
+      output += chunk.toString();
+      done();
+    },
+  });
+  await launchLinear({
+    input: Readable.from(['6\n', '4\n', ':back\n', ':quit\n']),
+    output: sink,
+    account: { org_name: 'test' },
+  });
+  assert.ok(output.includes('Theme:'));
+  assert.equal(output.includes('\x1b'), false);
+  assert.ok(output.includes('Alive5'));
+});
+
+test('linear preview requires the exact SEND command', async () => {
+  let sends = 0;
+  let output = '';
+  const sink = new Writable({
+    write(chunk, encoding, done) {
+      output += chunk.toString();
+      done();
+    },
+  });
+  await launchLinear({
+    input: Readable.from([
+      '1\n1\n1\n:next\n+15555550101\nHello from the linear workspace\nsend\n:quit\n',
+    ]),
+    output: sink,
+    account: { org_name: 'test' },
+    services: {
+      ...mock,
+      send: async () => {
+        sends++;
+        return { status: 'accepted' };
+      },
+    },
+  });
+  assert.equal(sends, 0);
+  assert.ok(output.includes('Type SEND'));
+  await launchLinear({
+    input: Readable.from([
+      '1\n1\n1\n:next\n+15555550101\nHello from the linear workspace\nSEND\n:quit\n',
+    ]),
+    output: sink,
+    account: { org_name: 'test' },
+    services: {
+      ...mock,
+      send: async () => {
+        sends++;
+        return { status: 'accepted' };
+      },
+    },
+  });
+  assert.equal(sends, 1);
+});
+
 test('appearance controls select logos and stop motion', async () => {
   const old = process.env.NO_COLOR,
     oldAnimation = process.env.ALIVE5_NO_ANIMATION;
@@ -235,7 +397,9 @@ test('appearance controls select logos and stop motion', async () => {
     assert.equal(app.state.logo, 'type');
     await press(app, 'down');
     await press(app, 'right');
-    assert.equal(app.state.motion, 'subtle');
+    assert.equal(app.state.motion, 'off');
+    await app.handleKey(' ', {});
+    assert.equal(app.state.motion, 'full');
     await app.handleKey(' ', {});
     assert.equal(app.state.motion, 'off');
     const a = app.frame(100, 36, 3000).rows(24).join('');
@@ -334,6 +498,7 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
     );
     const migrated = await appearance();
     assert.equal(migrated.logo, 'frame');
+    assert.equal(migrated.theme, 'dark');
     const app = new Workspace({ account: { org_name: 'Example' }, settings: migrated });
     await app.handleKey('a');
     const previews = new Set();
@@ -360,11 +525,11 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
     await app.handleKey('s');
     assert.equal(app.state.notice, 'Appearance saved.');
     assert.equal(app.state.panel.index, 0);
-    for (let i = 0; i < 4; i++) await press(app, 'down');
+    for (let i = 0; i < 5; i++) await press(app, 'down');
     await press(app, 'return');
     assert.equal(app.state.notice, 'Appearance saved.');
     const saved = await appearance();
-    assert.deepEqual(saved, { logo: 'frame', motion: 'off', effect: 'breathe' });
+    assert.deepEqual(saved, { logo: 'frame', motion: 'off', effect: 'breathe', theme: 'dark' });
     assert.equal(JSON.parse(await readFile(join(dir, 'appearance.json'))).logo, 'frame');
     const restarted = new Workspace({ settings: saved });
     assert.ok(restarted.frame(80, 24).plain().includes('│   Alive5   │'));

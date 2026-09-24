@@ -96,19 +96,27 @@ export function wrapWithCaret(value, width, caret = 0) {
   const lines = [];
   let line = '';
   let start = 0;
-  const push = () => {
+  const push = (nextStart) => {
     lines.push({ text: line, start });
-    start += parts(line).length;
+    start = nextStart;
     line = '';
   };
   for (let i = 0; i < chars.length; i++) {
     const ch = chars[i];
     if (ch === '\n') {
-      push();
-      start += 1;
+      push(i + 1);
       continue;
     }
-    if (stringWidth(line + ch) > width && line) push();
+    if (ch === ' ' && line) {
+      let j = i + 1;
+      while (j < chars.length && chars[j] !== ' ' && chars[j] !== '\n') j++;
+      const nextWord = chars.slice(i + 1, j).join('');
+      if (nextWord && stringWidth(line + ' ' + nextWord) > width) {
+        push(i + 1);
+        continue;
+      }
+    }
+    if (stringWidth(line + ch) > width && line) push(i);
     line += ch;
   }
   lines.push({ text: line, start });

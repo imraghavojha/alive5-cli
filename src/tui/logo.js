@@ -7,7 +7,7 @@
 // where the numeral begins, which is what gets the brand orange. Nothing has to
 // track hand-measured offsets.
 
-import { theme, mix } from './screen.js';
+import { mix } from './screen.js';
 
 export const WORDMARK = 'Alive5';
 export const LOGO_HEIGHT = 7;
@@ -131,6 +131,7 @@ export function drawLogo(
     variant = 'frame',
   },
 ) {
+  const theme = screen.theme;
   const logo = logoById(variant);
   // Every variant fits the smallest supported terminal. A narrower command
   // banner keeps readable text instead of clipping letterforms.
@@ -166,6 +167,7 @@ export function drawLogo(
 
 /** Deterministic stars along the banner's top and bottom rows only. */
 function drawStars({ screen, x, y, width, height, t }, effect) {
+  const theme = screen.theme;
   const count = effect === 'cosmos' && width < 50 ? 6 : 8;
   for (let i = 0; i < count; i++) {
     const px = Math.floor(((i * width) / count + t * (i % 2 ? 1 : 0.6)) % width);
@@ -190,6 +192,7 @@ const painter =
 const PLANET = ['   .-.  /', ' /(___)/ ', "/  '-'   "];
 
 function drawPlanet(scene) {
+  const theme = scene.screen.theme;
   const { width, height, artWidth, t } = scene;
   const planetX = Math.max(artWidth + 3, width - 11);
   if (planetX + 9 > width) return;
@@ -221,6 +224,7 @@ function drawPlanet(scene) {
  * growing particle list and no work outside this small banner.
  */
 function drawComets(scene) {
+  const theme = scene.screen.theme;
   const { width, height, artWidth, t } = scene;
   const paint = painter(scene);
   for (let i = 0; i < 2; i++) {

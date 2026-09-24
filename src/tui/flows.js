@@ -298,10 +298,11 @@ export function openRecord(app, record) {
 
 /** Composing to a contact found in a list, so the number is never retyped. */
 export function messageRecord(app, record) {
-  if (!record.phone) {
+  const phone = record.phone || record.contact?.phone;
+  if (!phone) {
     app.state.notice = 'This record has no mobile number to message.';
     app.changed();
     return;
   }
-  return chooseSender(app, (context) => compose(app, context, { to: record.phone }));
+  return chooseSender(app, (context) => compose(app, context, { to: phone }));
 }

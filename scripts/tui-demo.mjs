@@ -24,7 +24,12 @@ const transcript = [
 ];
 await launchTui({
   account: { org_name: 'Studio workspace' },
-  settings: { motion: process.env.DEMO_MOTION || 'full', effect: 'cosmos', logo: 'frame' },
+  settings: {
+    motion: process.env.DEMO_MOTION || 'subtle',
+    effect: 'cosmos',
+    logo: 'frame',
+    theme: process.env.DEMO_THEME || 'dark',
+  },
   services: {
     account: async () => ({ org_name: 'Studio workspace' }),
     channels: async () => [

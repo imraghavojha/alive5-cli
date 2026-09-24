@@ -89,7 +89,7 @@ const TABLES = {
     columns: [column('name', 'TAG', 30), column('id', 'ID', 30)],
   },
   messages: {
-    title: (m) => `${m.sender || 'Unknown'} · ${m.at || ''}`,
+    title: (m) => `${m.sender || 'Unknown'} · ${m.at ? shortTime(m.at) : ''}`,
     columns: [
       column('at', 'TIME', 17),
       column('sender', 'SENDER', 18),

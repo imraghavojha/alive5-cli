@@ -1,8 +1,8 @@
 // Screen assembly: the fixed header, the panel, and the fixed footer. Panel
 // bodies live in ./panels.js; this file owns only the chrome around them.
 
-import { Screen, theme } from './screen.js';
-import { wrap } from './text.js';
+import { Screen } from './screen.js';
+import { wrap, clipWithEllipsis } from './text.js';
 import { WORDMARK, drawLogo } from './logo.js';
 import { layout, showsBanner, MIN_WIDTH, MIN_HEIGHT } from './layout.js';
 import { panels } from './panels.js';
@@ -34,27 +34,39 @@ function secondary(state, panel, narrow) {
   if (panel.kind === 'form') {
     const field = panel.fields[panel.index];
     const editing = 'Home/End · Ctrl+U clear · Ctrl+W word';
+    if (narrow)
+      return field.multiline ? 'Ctrl+J newline · Ctrl+U clear' : 'Home/End · Ctrl+U clear';
     return field.multiline ? `Ctrl+J new line · ${editing}` : editing;
   }
   if (panel.kind === 'list')
-    return narrow ? 'y copy · m message' : 'y copy value · m message this contact · n next page';
+    return [
+      narrow ? 'y copy' : 'y copy value',
+      ['contacts', 'conversations'].includes(panel.recordKind)
+        ? narrow
+          ? 'm message'
+          : 'm message this contact'
+        : '',
+      panel.next ? 'n next page' : '',
+    ]
+      .filter(Boolean)
+      .join(' · ');
   if (state.busy) return '◌ ' + state.busy;
   return '';
 }
 
 export function view(state, width, height, time = 0) {
-  const s = new Screen(width, height);
+  const s = new Screen(width, height, state.theme);
   const panel = state.panel;
   const l = layout(width, height, panel.kind, state.logo);
   if (l.tooSmall) {
-    s.text(2, 2, width - 4, WORDMARK.toLowerCase(), theme.orange);
+    s.text(2, 2, width - 4, WORDMARK.toLowerCase(), s.theme.orange);
     s.text(2, 4, width - 4, `Resize to at least ${MIN_WIDTH} × ${MIN_HEIGHT}.`);
-    s.text(2, 6, width - 4, 'Ctrl+C to exit', theme.muted);
+    s.text(2, 6, width - 4, 'Ctrl+C to exit', s.theme.muted);
     return s;
   }
   const workspaceName = state.account?.org_name || 'Connect your workspace';
   if (showsBanner(panel.kind)) {
-    s.text(3, 1, l.w, workspaceName, theme.muted);
+    s.text(3, 1, l.w, workspaceName, s.theme.muted);
     drawLogo(s, {
       x: 3,
       y: 3,
@@ -67,8 +79,8 @@ export function view(state, width, height, time = 0) {
     });
   } else {
     // Task screens keep a single-line header so the panel gets the height.
-    s.text(3, 1, l.w, WORDMARK, theme.ink, theme.bg, true);
-    s.text(3 + WORDMARK.length + 2, 1, l.w - WORDMARK.length - 2, workspaceName, theme.muted);
+    s.text(3, 1, l.w, WORDMARK, s.theme.ink, s.theme.bg, true);
+    s.text(3 + WORDMARK.length + 2, 1, l.w - WORDMARK.length - 2, workspaceName, s.theme.muted);
   }
   panels[panel.kind]?.(s, l, panel, state);
   footer(s, state, panel, l, width, height);
@@ -83,15 +95,21 @@ function footer(s, state, panel, l, width, height) {
   const narrow = l.narrow;
   const hint = HINTS[panel.kind]?.[narrow ? 1 : 0] || '';
   const message = state.error || state.notice || hint;
-  const tone = state.error ? theme.hot : theme.muted;
+  const tone = state.error ? s.theme.hot : s.theme.muted;
   const lines = wrap(message, l.w).slice(0, 2);
   // A two-line message borrows the rule's row so the panel never shifts.
   const ruleRow = height - 3 - (lines.length > 1 ? 1 : 0);
   s.line(3, ruleRow, l.w);
   lines.forEach((text, i) => s.text(3, height - 2 - (lines.length - 1) + i, l.w, text, tone));
   const version = 'v' + VERSION;
-  s.text(3, height - 1, l.w - version.length - 2, secondary(state, panel, narrow), theme.faint);
-  s.text(3 + l.w - version.length, height - 1, version.length, version, theme.faint);
+  s.text(
+    3,
+    height - 1,
+    l.w - version.length - 2,
+    clipWithEllipsis(secondary(state, panel, narrow), l.w - version.length - 2),
+    s.theme.faint,
+  );
+  s.text(3 + l.w - version.length, height - 1, version.length, version, s.theme.faint);
 }
 
 /** The shortcut overlay's content, built once from the same key handling below. */

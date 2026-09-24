@@ -14,6 +14,8 @@ alive5
 
 Requires Node.js 22 or newer. This is a local preview, not a published npm package. `npm link` installs the `alive5` command from this checkout. You can also use `node bin/alive5.js` without linking.
 
+To update a linked install, replace or update this checkout, run `npm ci`, then run `npm link` again. `alive5 --version` reads the version from this checkout. To remove the link, run `npm unlink -g @alive5/cli`. A registry release is not configured for this private package.
+
 ## The terminal workspace
 
 The header stays visible. Menus, forms, transcripts, and lists replace the content panel instead of adding lines to your shell. Your selected Alive5 wordmark appears on Home and Appearance. Task screens use a single-line header, leaving room for the form or transcript. Exit restores your previous terminal content.
@@ -24,24 +26,27 @@ The header stays visible. Menus, forms, transcripts, and lists replace the conte
 - `a` opens Appearance. Press `1`–`8` to compare Wordmark, Slash, Outline, Pixel, Dots, Wire, Slab, and Label. Use ↑↓ to choose a setting and ←→ to change it. `s` saves your choice, `r` replays the effect, and Space pauses motion.
 - Form fields are real text fields: ←→ move the caret, Home/End jump to the line edges, Backspace and Delete remove either side of it, Ctrl+W deletes a word, and Ctrl+U clears the field. Tab and Shift+Tab move between fields; Ctrl+J adds a line break in Message. Pasted multiline text stays in the field and does not submit it.
 - Records appear as a compact table, one row per record, with the columns that identify it. Enter opens full detail. `/` filters the records already loaded — the footer says so, to distinguish it from searching your whole account. `n` fetches the next API page, `y` copies the highlighted value, and `m` composes a message to the highlighted contact without retyping the number.
+- At 100 columns or wider, lists show the selected record beside the table. Very wide terminals retain all table columns. At 40 columns, the table keeps the fields that identify each record; Enter opens full detail.
 - Review names every consequential choice before Enter sends: workspace, channel, sending teammate, sender, recipient, and the full message. Esc returns to the draft.
 - Sending reports four distinct outcomes: in flight, accepted, rejected, and unknown. An unknown result keeps your draft and will not send again on the next Enter — recovery is deliberate, because a failed request can still have been delivered.
 - Errors wrap across the footer rather than being clipped mid-sentence, and the panel above them does not shift.
 
-The eight wordmarks all spell Alive5, using the brand orange `#EB5124` for the 5. Label, variation 8, is the initial choice. Cosmos adds continuous stars, occasional comets, a ringed planet, and an orbiting moon. Light sweep, Slow glow, and Star drift are also available. Continuous mode keeps the preview moving; Entrance only runs the effect for 850 ms; Off draws a static logo. The lettering stays visible throughout. Animation is capped near 6 fps after startup and stops on task screens.
+The eight wordmarks all spell Alive5, using the brand orange `#EB5124` for the 5 in the dark theme. Label, variation 8, is the initial choice. Cosmos adds stars, occasional comets, a ringed planet, and an orbiting moon. Light sweep, Slow glow, and Star drift are also available. New settings use Entrance only, which runs motion for 850 ms; Continuous keeps it moving; Off draws a static logo. Saved motion choices remain unchanged. The lettering stays visible throughout. Animation is capped near 6 fps after startup and stops on task screens. Choose Dark, Light, Terminal colors, or High contrast from Appearance.
 
 Agents can configure appearance without opening the terminal UI or authenticating:
 
 ```sh
 alive5 schema appearance set
 alive5 appearance get --json
-alive5 appearance set --logo frame --motion full --effect cosmos --json
+alive5 appearance set --logo frame --motion subtle --effect cosmos --theme light --json
 alive5 appearance set --motion off --dry-run --json
 ```
 
 `frame` is Label, variation 8. Changes are local and take effect in the next interactive session. Unspecified settings are preserved; `--dry-run` previews without saving.
 
 Appearance preferences live in `appearance.json` beside the credential file. `--no-animation`, `ALIVE5_NO_ANIMATION=1`, and `NO_COLOR` force motion off. The minimum interactive size is 40×24; 80×24 gives more room for hints and descriptions. Wider wordmarks fall back to plain Alive5 if a command banner cannot fit them. See [V3 design and research](docs/design-v3.md) and [Cosmos implementation notes](docs/cosmos.md).
+
+For line-by-line interaction, run `alive5 --linear`. It prints ordinary text without using the alternate screen or animation. Enter a menu number, `:back`, or `:quit`. On a form, type a value and press Enter, or enter `:next` to keep the current value. Write `\\n` for a line break in a message. The send preview requires the exact word `SEND`. Set up credentials first with `alive5 auth login --key-stdin`; the linear mode does not echo or collect API keys. This mode has not been validated with a screen reader.
 
 ## Connect
 
@@ -128,14 +133,17 @@ This version leaves out administrative creation, inbound message injection, webh
 ## Development
 
 ```sh
-npm test        # 29 focused tests, offline, no SMS sent
+npm test        # focused tests, offline, no SMS sent
 npm run check   # formatting plus tests
 npm run format
 npm run demo    # offline interactive fixture
 npm run capture # real PTY captures with fake data
+node scripts/package-smoke.mjs # install and launch the tarball in a temporary directory
 ```
 
 Tests cover command discovery, errors, credentials, multipart sending, input validation, normalization, pagination, terminal control characters, caret editing, list filtering, unknown send outcomes, footer wrapping, and shell completions.
+
+The GitHub Actions workflow is configured to run checks, a package install smoke test, and the offline capture on macOS, Linux, and Windows with Node 22, 24, and 26. This checkout has no Git remote, so that matrix has not run here.
 
 ### Where things live
 

@@ -63,7 +63,11 @@ export async function login(options = {}) {
   }
 }
 
-export async function dashboard() {
+export async function dashboard({ linear = false } = {}) {
+  if (linear) {
+    const { launchLinear } = await import('./tui/linear.js');
+    return launchLinear();
+  }
   const { launchTui } = await import('./tui/runtime.js');
   await launchTui();
 }

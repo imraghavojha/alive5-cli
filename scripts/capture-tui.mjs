@@ -4,9 +4,17 @@ import { spawn } from 'node-pty';
 import headless from '@xterm/headless';
 import { createCanvas, GlobalFonts } from '@napi-rs/canvas';
 import { writeFile, mkdir } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { setTimeout as sleep } from 'node:timers/promises';
 const { Terminal } = headless;
 const out = process.argv[2] || '.local/design';
+const captureTheme = process.env.DEMO_THEME || 'dark';
+const defaultColors = {
+  dark: { bg: '#111011', fg: '#e4e4e7' },
+  light: { bg: '#faf8f4', fg: '#262326' },
+  terminal: { bg: '#111011', fg: '#e4e4e7' },
+  'high-contrast': { bg: '#000000', fg: '#ffffff' },
+}[captureTheme];
 await mkdir(out, { recursive: true });
 const cols = Number(process.argv[3] || 110),
   rows = Number(process.argv[4] || 38);
@@ -28,11 +36,25 @@ pty.onData((chunk) => {
   bytes += Buffer.byteLength(chunk);
   emulator.write(chunk);
 });
-GlobalFonts.registerFromPath('/System/Library/Fonts/Menlo.ttc', 'Terminal Mono');
+const fontPath = [
+  '/System/Library/Fonts/Menlo.ttc',
+  '/usr/share/fonts/truetype/dejavu/DejaVuSansMono.ttf',
+  '/usr/share/fonts/truetype/liberation2/LiberationMono-Regular.ttf',
+  'C:\\Windows\\Fonts\\consola.ttf',
+].find(existsSync);
+if (fontPath) GlobalFonts.registerFromPath(fontPath, 'Terminal Mono');
+else
+  throw new Error(
+    'A monospace capture font is required (Menlo, DejaVu Sans Mono, Liberation Mono, or Consolas).',
+  );
 function rgb(cell, background) {
   const n = background ? cell.getBgColor() : cell.getFgColor();
   const isDefault = background ? cell.isBgDefault() : cell.isFgDefault();
-  return isDefault ? (background ? '#111011' : '#ede6da') : '#' + n.toString(16).padStart(6, '0');
+  return isDefault
+    ? background
+      ? defaultColors.bg
+      : defaultColors.fg
+    : '#' + n.toString(16).padStart(6, '0');
 }
 export async function capture(name) {
   await new Promise((r) => emulator.write('', r));
@@ -42,12 +64,12 @@ export async function capture(name) {
     top = 38;
   const canvas = createCanvas(cols * cw + pad * 2, rows * ch + pad + top);
   const ctx = canvas.getContext('2d');
-  ctx.fillStyle = '#111011';
+  ctx.fillStyle = defaultColors.bg;
   ctx.fillRect(0, 0, canvas.width, canvas.height);
-  ctx.fillStyle = '#191718';
+  ctx.fillStyle = captureTheme === 'light' ? '#e8e1db' : '#191718';
   ctx.fillRect(0, 0, canvas.width, top);
   ctx.font = '12px Terminal Mono';
-  ctx.fillStyle = '#9b9490';
+  ctx.fillStyle = captureTheme === 'light' ? '#5b5558' : '#b0a9a5';
   ctx.fillText('alive5  ·  terminal', pad, 24);
   for (let y = 0; y < rows; y++)
     for (let x = 0; x < cols; x++) {
@@ -55,11 +77,12 @@ export async function capture(name) {
       if (!cell) continue;
       const xx = pad + x * cw,
         yy = top + y * ch;
-      ctx.fillStyle = rgb(cell, true);
+      const inverse = Boolean(cell.isInverse());
+      ctx.fillStyle = rgb(cell, !inverse);
       ctx.fillRect(xx, yy, cw, ch);
       const glyph = cell.getChars();
       if (!glyph) continue;
-      ctx.fillStyle = rgb(cell, false);
+      ctx.fillStyle = rgb(cell, inverse);
       // Terminal block elements are geometric cells, not font glyphs.
       const quadrants = [
         ' ',

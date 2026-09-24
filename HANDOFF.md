@@ -1,14 +1,13 @@
 # Alive5 CLI improvement handoff
 
-**Status, September 24, 2026.** Implemented in commit `e885aaa`. 29 tests pass and `npm run check` is clean.
+**Status, September 24, 2026.** The later appearance pass implemented items 6, 12, 14, and 15 on top of `e885aaa`. Item 24 is partial because this checkout has no remote release target or cross-platform test environment. The current suite has 37 passing tests and `npm run check` is clean.
 
-|               | Items                                                              |
-| ------------- | ------------------------------------------------------------------ |
-| ✅ Done       | 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 13, 16, 17, 18, 19, 20, 21, 22, 23 |
-| ◐ Partial     | 6, 12, 24                                                          |
-| ☐ Not started | 14, 15                                                             |
+|           | Items |
+| --------- | ----- |
+| ✅ Done   | 1–23  |
+| ◐ Partial | 24    |
 
-Each item below carries its own marker. [Remaining work](#remaining-work) at the end of this file describes what is left, with file-level pointers.
+The review and implementation history below remains for context. [Current work and remaining verification](#current-work-and-remaining-verification) at the end supersedes the older “Remaining work” section.
 
 Reviewed September 24, 2026 against CLI commit `3aa385f`. Read the complete thread `e9b56e9e-7888-4b42-8a27-68d9feb9a839`, compared it with this session's review, rechecked the source and failure cases, and independently consulted primary documentation. This replaces both review artifact sets. At the time of that review, no product changes had been implemented.
 
@@ -19,7 +18,7 @@ Reviewed September 24, 2026 against CLI commit `3aa385f`. Read the complete thre
 3. ✅ **Provide real text editing.** Support cursor movement, insertion, deletion, and multiline navigation. Typing currently only appends; fixing a word is unnecessarily difficult. Preserve safe multiline paste and accurate limit wording.
 4. ✅ **Make Back preserve work.** Return to the previous step with draft, selection, filters, and scroll position intact. Escape currently jumps Home and discards form context. Avoid saving message drafts to disk by default.
 5. ✅ **Keep errors and progress readable.** Show wrapped errors near the affected content and a visible busy state without hiding shortcuts. Long send warnings currently truncate in the footer.
-6. ◐ **Correct scrolling and truncation.** End followed by Up should visibly scroll immediately; resizing should preserve valid positions. Indicate clipped labels with an ellipsis and show progress through long previews.
+6. ✅ **Correct scrolling and truncation.** End followed by Up should visibly scroll immediately; resizing should preserve valid positions. Indicate clipped labels with an ellipsis and show progress through long previews.
 7. ✅ **Clarify dates and global options.** Use clearly labeled calendar/timezone behavior, offer common date presets, and honor applicable timeout settings in the TUI. UTC-derived “today” and ignored global-looking options are misleading.
 8. ✅ **Make command errors actionable.** Replace `(outputHelp)` with the required subcommand and recovery guidance; add structured field/details information where useful. Invalid commands must remain explicit failures.
 
@@ -28,10 +27,10 @@ Reviewed September 24, 2026 against CLI commit `3aa385f`. Read the complete thre
 9. ✅ **Replace record dumps with selectable lists.** Use compact, relevant columns with full details available on demand. Contacts currently repeat names and internal field labels across many lines.
 10. ✅ **Connect browsing to actions.** Allow opening a record, composing to a selected contact, and copying useful values where supported. Users should not retype a number they just found.
 11. ✅ **Add contextual search and help.** Support list filtering and a shortcut overlay. Clearly distinguish searching loaded records from searching the entire account; keep typing fields free of shortcut conflicts.
-12. ◐ **Adapt layout to the task and terminal.** Use list/detail panes when space permits and a single panel on narrow screens. Give reading/editing useful space while retaining comfortable line lengths and fixed navigation hints.
+12. ✅ **Adapt layout to the task and terminal.** Use list/detail panes when space permits and a single panel on narrow screens. Give reading/editing useful space while retaining comfortable line lengths and fixed navigation hints.
 13. ✅ **Prioritize work in navigation.** Use a compact contextual header and emphasize Compose, Messages, Conversations, and Contacts. Keep appearance and agent help accessible as secondary choices.
-14. ☐ **Make visual defaults calmer and more accessible.** Default new preferences to static or entrance-only motion, preserving saved choices and all existing effects. Add light/dark/terminal-native and high-contrast options, stronger focus indication, and readable action colors. The current body-text contrast is already good.
-15. ☐ **Provide a linear accessibility path.** Support readable non-animated interaction/output alongside the alternate-screen workspace. Color removal alone does not establish screen-reader usability.
+14. ✅ **Make visual defaults calmer and more accessible.** Default new preferences to static or entrance-only motion, preserving saved choices and all existing effects. Add light/dark/terminal-native and high-contrast options, stronger focus indication, and readable action colors. The current body-text contrast is already good.
+15. ✅ **Provide a linear accessibility path.** Support readable non-animated interaction/output alongside the alternate-screen workspace. Color removal alone does not establish screen-reader usability.
 
 ## Improve discovery for people and agents
 
@@ -84,45 +83,12 @@ Items 1–5, 7–13, and 16–23 are done, with 29 passing tests and `npm run ch
 
 **Wordmark.** Every wordmark now reads `Alive5` with no space, in the type, label, and bitmap variants and in the four FIGlet variants, where the numeral block was tightened to the font's own letter spacing. The README, docs, tests, and the `From · your Alive5 number` field label follow.
 
-## Remaining work
+## Current work and remaining verification
 
-Five items, in the order a next agent would most usefully take them.
+- **Appearance (14):** Fresh preferences now use entrance-only motion. Existing saved motion stays intact. Dark, light, terminal-native, and high-contrast themes flow through the cell renderer; terminal-native uses ANSI default foreground/background and reverse video for focus. Focus is clearer in lists and fields, and action text follows the chosen theme. The CLI and TUI can save all four appearance settings.
+- **Scrolling and layout (6, 12):** Reader End/Up scrolls immediately by using the actual visible height. Resize clamps offsets and selection without resetting valid positions. At 100 columns or wider, lists show a selected-record detail pane; very wide tables retain all columns. Narrow terminals use one panel and prioritize the fields that identify each record.
+- **Linear interaction (15):** `alive5 --linear` runs the workspace as ordinary text without alternate screen, animation, or raw mode. It shares the same state and send confirmation. It has automated text-output coverage but has not been tested with a screen reader, so no screen-reader compatibility claim is made.
+- **Capture and packaging (24):** The capture script finds a monospace font on macOS, Linux, or Windows and uses theme-matched terminal defaults. The 37 tests passed locally on macOS with Node 22.18.0 and 26.0.0. `npm pack`, offline installation from the tarball, and the installed binary were verified locally. A GitHub Actions matrix now schedules tests, package installation, and capture on macOS, Linux, and Windows with Node 22, 24, and 26. This checkout has no Git remote, so the matrix has not run. README documents local install, update, and unlink. The package remains private; no public release target is configured.
+- **Visual review:** Claude Opus 5 read six real offline PTY PNG captures and identified capture defaults, wide-list density, focus, and theme contrast issues. Those fixes were applied and captured again. A requested second Opus pass hit Claude Code's rate/session limit; an attempt through OpenCode reported insufficient account funds. Neither returned feedback. An independent `mimo-v2.6-flash-free` command and terminal pass found narrower list, shortcut, hint, and wrapping defects that were fixed. Its later review of four PNGs reported no blocking visual defects. The screenshot files and raw responses are gitignored under `.local/`.
 
-### ☐ 14 — Calmer visual defaults, themes, focus, and action colors
-
-Two separable pieces.
-
-_The cheap piece, not done:_ defaulting new installs to static or entrance-only motion is one value in `appearanceDefaults` in `src/storage.js`. Saved choices are already preserved — `appearance()` falls back per key, so an existing `appearance.json` keeps its motion. Needs a test asserting a fresh config directory yields the new default and an existing one does not change.
-
-_The expensive piece, not done:_ `theme` in `src/tui/screen.js` is a module constant of hex literals read at 70 call sites (`panels.js` 23, `view.js` 8, `logo.js` 8, `screen.js` 7, `workspace.js` 1). Light/dark/high-contrast means the theme becomes a runtime-selected value threaded through `Screen` and every draw function. Terminal-native is more than a palette: `Screen.rows()` emits both an fg and a bg SGR per cell at depth 8/24 and none at depth 0, so there is no way to express "the terminal's own default foreground" — the cell model needs that state added. Add the new preference to `appearanceChoices` in `src/storage.js`, the `appearance` panel in `src/tui/panels.js`, and `src/commands/appearance.js`, which are already data-driven and will pick it up.
-
-Stronger focus indication and readable action colors live in `row()` and `button()` in `src/tui/panels.js`. Body-text contrast was already good and does not need changing.
-
-### ☐ 15 — Linear accessibility path
-
-Not a modification of the workspace; a second interaction mode beside it. The alternate screen is owned by `src/tui/terminal.js` and `src/tui/runtime.js`, so a line-oriented mode would be a peer of `runtime.js` reusing `workspace.js` for state, with its own output contract. Note that colour removal alone does not establish screen-reader usability, and this session could not verify against a screen reader. Do not describe this as accessible without that verification.
-
-### ◐ 6 — Scrolling and truncation edge cases
-
-Done: clipped labels now show an ellipsis via `clipWithEllipsis` in `src/tui/text.js`, used by list cells; the reader and list clamp their offsets; the preview reports `line N–M of T` for long messages.
-
-Left: End followed by Up scrolling visibly and immediately, and resize preserving valid scroll and selection positions, were not separately reproduced or tested. Relevant code is `scroll()` and the `list` handler in `src/tui/keys.js` and `onResize` in `src/tui/runtime.js`. The existing resize test in `test/tui.test.js` checks bounds, not position preservation.
-
-### ◐ 12 — Layout adaptation
-
-Done: column widths scale proportionally on narrow terminals (`columnWidths` in `src/tui/panels.js`), footer hints have wide and narrow variants (`HINTS` in `src/tui/view.js`), the 78-column cap keeps line lengths comfortable, and navigation hints are fixed.
-
-Left: side-by-side list/detail panes when width allows. Today detail replaces the list on Enter and Esc restores it with its filter and selection. `layout()` in `src/tui/layout.js` is the single place panel geometry is decided and already returns a `narrow` flag, so a split would be added there and consumed by `panels.list`.
-
-### ◐ 24 — Verification and distribution
-
-Done: every reproduced failure has regression coverage, and the workspace is exercised at 40, 64, 80, and 110 columns.
-
-Left: no release, install, or update path is documented; the README still calls this a local preview and `package.json` is `private: true`. Packaging across supported Node and OS combinations is unverified. `scripts/capture-tui.mjs` hardcodes `/System/Library/Fonts/Menlo.ttc`, so captures only work on macOS — make the font portable before relying on captures in CI. Theme and accessibility coverage depends on 14 and 15 landing first.
-
-### Also worth knowing
-
-- The `m` shortcut composes to a contact but requires that contact to have `phone`; records without one show a notice rather than failing.
-- `copy` uses OSC 52 and returns false outside a TTY. No terminal capability detection is attempted, and the notice says so.
-- `defaultCopy` in `src/tui/workspace.js` is injectable via the `onCopy` constructor option, which is how it is tested.
-- Escape steps back one panel at a time; there is no direct jump to Home. If that becomes a complaint, the panel stack is `Workspace.history` and `home()` already clears it.
+No live messages were sent. Review images use fake offline data.

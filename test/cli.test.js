@@ -280,11 +280,13 @@ test('agents discover, preview, save, and read appearance without credentials or
       logo: 'frame',
       effect: 'cosmos',
       motion: 'full',
+      theme: 'dark',
       saved: true,
     });
     const preview = command('appearance', 'set', '--motion', 'off', '--dry-run');
     assert.equal(JSON.parse(preview.stdout).data.saved, false);
     assert.equal(JSON.parse(command('appearance', 'get').stdout).data.motion, 'full');
+    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.theme, 'dark');
     const before = await readFile(join(dir, 'appearance.json'), 'utf8');
     assert.equal(command('appearance', 'set', '--effect', 'invalid').status, 2);
     assert.equal(command('appearance', 'set').status, 2);
