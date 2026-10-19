@@ -1,6 +1,8 @@
 // Cell-native lettering: no image masks, font downloads, or per-frame pixel
 // allocation. FIGlet letterforms were rendered at development time with
-// pyfiglet. See docs/design-v3.md.
+// pyfiglet: Small, Small Slant and Bigfig by Glenn Chappell (Small and Small
+// Slant updates by Paul Burton); Rectangles by David Villegas. Runtime includes
+// rendered words only; font definitions were not modified.
 //
 // Every wordmark is declared as two blocks — the word and the numeral — joined
 // with no gap, so it reads as one word. Joining also yields the exact column

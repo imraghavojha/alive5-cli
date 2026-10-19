@@ -10,7 +10,9 @@
     "bin",
     "src",
     "README.md",
-    "docs"
+    "docs/agents.md",
+    "docs/api.md",
+    "docs/media"
   ],
   "engines": {
     "node": ">=22"

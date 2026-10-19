@@ -97,7 +97,7 @@ The [agent guide](docs/agents.md) covers send semantics, pagination, and untrust
 
 - When Alive5 accepts a text, that does not confirm it reached the handset, so send results say `deliveryConfirmed: false`. A send that fails on the network may still have gone through; check before you resend.
 - The API does not say which side sent a message. The workspace treats a phone-number sender as the customer.
-- The CLI follows the [public Postman collection](https://documenter.getpostman.com/view/12135254/UVsQr3zh). Known API quirks are in [research](docs/research.md), and the live checks are in [verification](docs/verification.md).
+- The CLI follows the [public Postman collection](https://documenter.getpostman.com/view/12135254/UVsQr3zh). Endpoint mappings and known API quirks are in the [API notes](docs/api.md).
 
 ## Development
 

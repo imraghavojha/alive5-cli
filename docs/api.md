@@ -1,20 +1,7 @@
-# API and CLI research
+# API contract and known limits
 
-Reviewed September 12, 2026. The public website redirects to the Postman collection. The CLI uses the collection's request methods, hosts, header, query names, and multipart fields. Internal webhook docs and neighboring integration implementations were not used as the API contract.
-
-## Sources and design choices
-
-| Source                                                 | Current release checked                                                              | Applied here                                                                 |
-| ------------------------------------------------------ | ------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
-| [GitHub CLI](https://github.com/cli/cli)               | [v2.100.0, September 3](https://github.com/cli/cli/releases/tag/v2.100.0)            | Explicit resource/action commands, JSON for scripting, useful help           |
-| [Stripe CLI](https://github.com/stripe/stripe-cli)     | [v1.50.11, September 10](https://github.com/stripe/stripe-cli/releases/tag/v1.50.11) | Separate authentication flow and direct API-oriented commands                |
-| [Charm Gum](https://github.com/charmbracelet/gum)      | [v2.0.1, September 11](https://github.com/charmbracelet/gum/releases/tag/v2.0.1)     | Compact chooser, preview/confirm sequence, restrained color and spacing      |
-| [Clack](https://github.com/bombshell-dev/clack)        | Core 1.5.0, prompts 1.8.0                                                            | Masked input, cancellable keyboard menus, aligned prompt flow                |
-| [Command Line Interface Guidelines](https://clig.dev/) | Live guide                                                                           | TTY detection, stdout/stderr conventions, no prompts in automation, NO_COLOR |
-
-These are established, maintained projects selected for relevant design patterns, not an exhaustive ranking of all GitHub CLIs. The GitHub API showed recent pushes on September 11 or 12 for all four repositories. Dependencies are pinned in package-lock.json.
-
-Clack and Commander keep the implementation small. The public API adapter uses Node's built-in fetch and FormData. Animation only runs at interactive startup and can be disabled. The terminal and machine interfaces share the same API adapter.
+The CLI follows the public Postman collection. Endpoint observations below were
+recorded in September 2026; offline tests cover their request and response mappings.
 
 ## Public API contract
 
