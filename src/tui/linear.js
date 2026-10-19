@@ -1,6 +1,3 @@
-// A line-by-line peer of the full-screen runtime. It uses the same Workspace
-// state and actions, but writes ordinary text and never changes terminal modes.
-
 import { createInterface } from 'node:readline';
 import { Workspace } from './workspace.js';
 import { navigation } from './layout.js';

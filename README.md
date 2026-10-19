@@ -91,13 +91,11 @@ Piped output is JSON: one envelope per command, errors included.
 - A mistyped command returns `UNKNOWN_COMMAND` with `error.details.suggestions`. A missing flag returns `MISSING_OPTION` with `error.field`.
 - Nothing prompts when output is piped. Sending needs `--yes` and never retries.
 
-The [agent guide](docs/agents.md) covers send semantics, pagination, and untrusted content.
-
 ## Good to know
 
 - When Alive5 accepts a text, that does not confirm it reached the handset, so send results say `deliveryConfirmed: false`. A send that fails on the network may still have gone through; check before you resend.
 - The API does not say which side sent a message. The workspace treats a phone-number sender as the customer.
-- The CLI follows the [public Postman collection](https://documenter.getpostman.com/view/12135254/UVsQr3zh). Endpoint mappings and known API quirks are in the [API notes](docs/api.md).
+- The CLI follows the [public Postman collection](https://documenter.getpostman.com/view/12135254/UVsQr3zh).
 
 ## Development
 
@@ -108,8 +106,6 @@ npm run demo        # the workspace with fake data
 npm run capture     # PTY screenshots into .local/design
 vhs docs/demo.tape  # re-record the GIF above with Charm's VHS
 ```
-
-[AGENTS.md](AGENTS.md) explains where things live and how changes are checked.
 
 ## License
 

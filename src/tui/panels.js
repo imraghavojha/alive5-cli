@@ -1,6 +1,3 @@
-// One draw function per panel kind. Each receives the panel, the screen, and the
-// resolved layout, and owns nothing outside its content area.
-
 import { wrap, clipWithEllipsis, stringWidth, fuzzy, graphemes } from './text.js';
 import { wrapWithCaret, length } from './editor.js';
 import { MESSAGE_LIMIT } from '../validate.js';
@@ -11,7 +8,6 @@ import { mix } from './screen.js';
 
 const muted = (s, x, y, w, text) => s.text(x, y, w, text, s.theme.muted);
 
-/** A heading plus a subtitle, the shared top of every task panel. */
 function heading(s, l, title, subtitle) {
   s.text(l.x, l.top, l.w, title, s.theme.ink, s.theme.bg, true);
   muted(s, l.x, l.top + 1, l.w, clipWithEllipsis(subtitle || '', l.w));
@@ -23,8 +19,6 @@ function button(s, x, y, w, text, tone = s.theme.orange) {
   s.text(x + 2, y, w - 3, text, s.theme.bg, tone, true);
 }
 
-/** Highlights the focused row and writes its label. */
-/** Highlights the focused row, writes its label, and makes it clickable. */
 function row(s, l, y, active, text, target) {
   if (active) s.fill(l.x, y, l.w, 1, s.theme.selected);
   s.text(
@@ -40,13 +34,11 @@ function row(s, l, y, active, text, target) {
   if (target) s.hit(l.x, y, l.w, target);
 }
 
-/** Keeps the focused index inside a window of `visible` rows. */
 export function scrollWindow(index, count, visible) {
   const start = Math.max(0, Math.min(index - Math.floor(visible / 2), count - visible));
   return Math.max(0, start);
 }
 
-/** A proportional thumb on a one-column track; nothing when everything fits. */
 function scrollbar(s, x, y, h, start, visible, total) {
   if (total <= visible || h < 2) return;
   const size = Math.max(1, Math.round((h * visible) / total));
@@ -57,10 +49,6 @@ function scrollbar(s, x, y, h, start, visible, total) {
   }
 }
 
-/**
- * Wraps detail lines into screen rows. Strings are headings or prose; arrays
- * are [label, value, link] pairs whose values line up in one column.
- */
 export function layoutLines(lines, width) {
   const labels = lines.filter(Array.isArray).map(([name]) => stringWidth(name));
   const indent = Math.min(16, Math.max(0, ...labels) + 2);
@@ -339,7 +327,6 @@ export const panels = {
   },
 };
 
-/** The selected record beside a wide list, framed like the table it describes. */
 function detail(s, l, top, height, selected) {
   const { x, w } = l.detail;
   s.box(x, top, w, height, 'Details');
@@ -352,7 +339,6 @@ function detail(s, l, top, height, selected) {
     s.text(x + 2, top + height - 1, w - 4, ' Enter for full details ', s.theme.muted);
 }
 
-/** Home's recent threads: who, when, and the last thing said. */
 function recent(s, area, y, rows, state) {
   const say = (text) => muted(s, area.x + 2, y, area.w - 4, text);
   if (state.recent == null) return say(state.recentError || 'Loading…');
@@ -371,7 +357,6 @@ function recent(s, area, y, rows, state) {
   });
 }
 
-/** The selected thread beside the list, scrolled to its latest message. */
 function conversation(s, l, top, height, selected) {
   const { x, w } = l.detail;
   s.box(x, top, w, height, 'Conversation');
@@ -382,10 +367,6 @@ function conversation(s, l, top, height, selected) {
   drawBubbles(s, x + 2, top + 3, w - 4, rows.slice(Math.max(0, rows.length - room)));
 }
 
-/**
- * Chat layout: customer messages on the left, your side on the right, each
- * under a faint sender and time. Returns rows so callers can scroll them.
- */
 export function bubbles(thread, width) {
   const widest = Math.max(12, Math.floor(width * 0.72));
   const rows = [];
@@ -471,13 +452,11 @@ function drawField(s, l, panel, field, index, y, height) {
   }
 }
 
-/** Leading columns that fit at their preferred width; never fewer than two. */
 function fitColumns(columns, width) {
   let used = 4;
   return columns.filter((c, i) => (used += c.width + 1) <= width || i < 2);
 }
 
-/** Column widths shrink proportionally so a narrow terminal still shows every column. */
 function columnWidths(columns, width) {
   const available = width - 4 - (columns.length - 1);
   const wanted = columns.reduce((a, c) => a + c.width, 0);
@@ -490,10 +469,6 @@ function columnWidths(columns, width) {
   return columns.map((c) => Math.max(6, Math.floor(c.width * scale)));
 }
 
-/**
- * A searchable selection's options, best match first. Earlier and tighter
- * matches rank higher; without a query the original order stands.
- */
 export function visibleOptions(panel) {
   if (!panel.query) return panel.options.map((option) => ({ option, at: null }));
   return panel.options

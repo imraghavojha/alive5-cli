@@ -1,7 +1,3 @@
-// Command-line entry point: global options, the shared command context, and one
-// place where every error becomes an envelope and an exit code. Command
-// definitions live in ./commands/.
-
 import { Command, Option, CommanderError } from 'commander';
 import { CliError, EXIT, envelope, failure, usage } from './errors.js';
 import { VERSION } from './meta.js';
@@ -59,7 +55,7 @@ function build() {
       envelope,
       invalidFields: () => usage('Unknown field. Inspect the output without --fields first.'),
     }),
-    /** Global options merged with the command's own, with --timeout validated once. */
+
     opts: (cmd) => {
       const o = cmd.optsWithGlobals();
       return { ...o, timeout: integer(o.timeout, 'timeout', 120000) };
@@ -89,7 +85,6 @@ function build() {
   return { program, json };
 }
 
-/** Edit distance, for suggesting the command a typo was probably meant to be. */
 function distance(a, b) {
   let row = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
@@ -101,10 +96,6 @@ function distance(a, b) {
   return row[b.length];
 }
 
-/**
- * The root and every group have an action, so Commander reports a mistyped
- * command as "too many arguments". Name the unknown word and the likely command.
- */
 function unknownCommand(program, message) {
   const [, owner, words] = message.match(/arguments(?: for '([^']+)')?\..*: (.+)\.$/) || [];
   const find = (cmd) =>
@@ -123,7 +114,6 @@ function unknownCommand(program, message) {
   );
 }
 
-/** Anything thrown becomes a CliError so the reported code and exit status agree. */
 function toCliError(e, program) {
   if (e instanceof CliError) return e;
   if (e instanceof CommanderError) {

@@ -1,6 +1,3 @@
-// Screen assembly: the fixed header, the panel, and the fixed footer. Panel
-// bodies live in ./panels.js; this file owns only the chrome around them.
-
 import { Screen } from './screen.js';
 import { wrap, stringWidth } from './text.js';
 import { WORDMARK, drawLogo } from './logo.js';
@@ -10,7 +7,6 @@ import { VERSION } from '../meta.js';
 
 export { navigation, layout } from './layout.js';
 
-/** Shortcut lines per panel, wide first and narrow as a fallback. */
 const HINTS = {
   home: [
     '↑↓ select · Enter open · Ctrl+K commands · a appearance · ? help · q quit',
@@ -28,7 +24,6 @@ const HINTS = {
 
 const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
 
-/** The second footer line: the busy indicator first, otherwise context-specific keys. */
 function secondary(state, panel, narrow) {
   if (state.busy) return `${SPINNER[state.tick % SPINNER.length]} ${state.busy}…`;
   if (panel.kind === 'appearance')
@@ -90,7 +85,6 @@ export function view(state, width, height, time = 0) {
   return s;
 }
 
-/** Notices appear at the header's right edge and fade on the next key or after a moment. */
 function toast(s, l, notice, reserved) {
   // Leave the wordmark and workspace name on the left untouched.
   const room = l.w - reserved - WORDMARK.length - 6;
@@ -100,10 +94,6 @@ function toast(s, l, notice, reserved) {
   s.text(x + 2, 1, stringWidth(text), text, s.theme.ink);
 }
 
-/**
- * Shortcut hints written as "key what · key what". Keys are drawn bright and
- * their descriptions dim, so the eye finds the key first.
- */
 function keys(s, x, y, w, hint) {
   let at = x;
   const write = (text, fg, bold = false) => {
@@ -119,10 +109,6 @@ function keys(s, x, y, w, hint) {
   });
 }
 
-/**
- * The status area holds an error or the panel's shortcuts. Errors are wrapped
- * over the available lines instead of being clipped mid-sentence.
- */
 function footer(s, state, panel, l, width, height) {
   const narrow = l.narrow;
   let hint = HINTS[panel.kind]?.[narrow ? 1 : 0] || '';
@@ -144,7 +130,6 @@ function footer(s, state, panel, l, width, height) {
   s.text(3 + l.w - version.length, height - 1, version.length, version, s.theme.faint);
 }
 
-/** The shortcut overlay's content, built once from the same key handling below. */
 export const SHORTCUTS = [
   ['Everywhere', ''],
   ['↑ ↓ / j k', 'Move the selection'],

@@ -1,10 +1,6 @@
-// Human-readable text output for the command path. The JSON envelope is built in
-// ./errors.js; nothing here ever runs when --json or a pipe selects JSON.
-
 import pc from 'picocolors';
 import { displayName } from './normalize.js';
 
-/** Strips control characters so API or transcript text cannot move the cursor. */
 export const safe = (v) => String(v ?? '—').replace(/[\x00-\x1f\x7f-\x9f]/g, ' ');
 
 export const colors = () =>
@@ -158,10 +154,6 @@ export function render(data, meta = {}) {
   out(safe(data));
 }
 
-/**
- * Builds the single `write` used by every command: field projection, then either
- * one JSON document or the text renderer.
- */
 export function writer({ json, fields, envelope, invalidFields }) {
   return (data, meta = {}) => {
     const selected = fields();

@@ -1,6 +1,3 @@
-// The workspace state machine: panels, navigation history, and the async calls
-// each screen makes. Drawing lives in ./view.js and key routing in ./keys.js.
-
 import * as api from '../api.js';
 import { CliError } from '../errors.js';
 import { config, saveConfig, saveAppearance, appearanceDefaults } from '../storage.js';
@@ -66,7 +63,6 @@ export class Workspace {
     if (!this.closed) this.onChange();
   }
 
-  /** Shows a panel, remembering the current one so Back can restore it intact. */
   show(panel, { remember = true } = {}) {
     if (remember && this.state.panel.kind !== 'home') this.history.push(this.state.panel);
     this.state.panel = panel;
@@ -74,7 +70,6 @@ export class Workspace {
     this.changed();
   }
 
-  /** Returns to the previous step with its draft, selection, and scroll intact. */
   back() {
     const previous = this.history.pop();
     if (!previous) return this.home();
@@ -139,7 +134,6 @@ export class Workspace {
     this.reader(title, records.resultLines(data), subtitle);
   }
 
-  /** A compact, selectable table of records with full detail on demand. */
   list(title, kind, data, meta = {}, next = null) {
     const { columns, rows } = records.describe(kind, data);
     const page = meta.page
@@ -161,7 +155,6 @@ export class Workspace {
     });
   }
 
-  /** One conversation, opened at its latest message. */
   transcript(thread) {
     const count = `${thread.messages.length} message${thread.messages.length === 1 ? '' : 's'}`;
     const subtitle = [thread.phone !== thread.name && thread.phone, count, thread.channelName]
@@ -184,10 +177,6 @@ export class Workspace {
 
   // ---- async work --------------------------------------------------------
 
-  /**
-   * Runs one request with a busy label. `current()` is false once the user has
-   * moved on, so a late response can never overwrite a newer screen.
-   */
   async run(label, fn) {
     if (this.state.busy) return;
     const epoch = this.epoch;
@@ -367,10 +356,6 @@ export class Workspace {
     this.changed();
   }
 
-  /**
-   * SGR mouse input. The wheel scrolls like the arrow keys; a click selects
-   * the row under the pointer, and a click on the selected row opens it.
-   */
   async mouse({ button, x, y, release }) {
     if (this.closed || this.state.busy || release) return;
     if (button === 64 || button === 65)
@@ -421,7 +406,6 @@ export class Workspace {
 
   // ---- rendering ---------------------------------------------------------
 
-  /** Caches the static screen and draws only the animated banner each frame. */
   frame(width, height, now = performance.now()) {
     this.width = width;
     this.height = height;

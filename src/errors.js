@@ -28,7 +28,6 @@ export const EXIT_CODES = {
   130: 'cancelled',
 };
 
-/** One place that decides how an HTTP status becomes a code and an exit status. */
 export function httpError(status, message) {
   const auth = status === 401 || status === 403;
   const limited = status === 429;

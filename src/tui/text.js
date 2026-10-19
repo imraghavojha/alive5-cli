@@ -1,6 +1,3 @@
-// Terminal-safe text measurement. Every string drawn to the screen passes
-// through sanitize() first, so untrusted content cannot emit escape sequences.
-
 import stringWidth from 'string-width';
 
 export const sanitize = (value) =>
@@ -10,7 +7,6 @@ export const sanitize = (value) =>
 
 const segmenter = new Intl.Segmenter(undefined, { granularity: 'grapheme' });
 
-/** Grapheme split, with fast paths for short and pure-ASCII strings. */
 export const graphemes = (text) =>
   !text
     ? []
@@ -32,7 +28,6 @@ export function clip(text, width) {
   return out;
 }
 
-/** Marks a clipped label so a truncated value is never mistaken for a full one. */
 export function clipWithEllipsis(text, width) {
   const clean = sanitize(text).replace(/\n/g, ' ');
   if (stringWidth(clean) <= width) return clean;
@@ -50,7 +45,7 @@ export function wrap(text, width) {
       }
       if (line) lines.push(line);
       line = '';
-      // A word longer than the panel is broken across lines rather than clipped.
+
       for (const char of graphemes(word)) {
         if (stringWidth(line + char) > width) {
           lines.push(line);
@@ -66,10 +61,6 @@ export function wrap(text, width) {
 
 export { stringWidth };
 
-/**
- * Fuzzy subsequence match. Returns the grapheme positions of each query
- * character in `text`, or null when the query does not match.
- */
 export function fuzzy(query, text) {
   const chars = graphemes(sanitize(text).toLowerCase());
   const positions = [];

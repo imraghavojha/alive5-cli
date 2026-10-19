@@ -1,6 +1,3 @@
-// One-off terminal prompts for the command path. The full-screen workspace lives
-// in ./tui/ and is loaded on demand so plain commands never pay for it.
-
 import * as p from '@clack/prompts';
 import * as api from './api.js';
 import { CliError, EXIT } from './errors.js';
@@ -13,7 +10,6 @@ export const interactive = () =>
     process.stdin.isTTY && process.stdout.isTTY && !process.env.CI && process.env.TERM !== 'dumb',
   );
 
-/** Draws a static wordmark above a prompt, using the same renderer as the workspace. */
 export async function banner() {
   const [{ Screen }, { drawLogo, LOGO_HEIGHT }] = await Promise.all([
     import('./tui/screen.js'),

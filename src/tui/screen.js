@@ -1,6 +1,3 @@
-// The cell buffer. A Screen is a plain grid of styled cells that can be turned
-// into ANSI rows; it has no knowledge of panels, keys, or the real terminal.
-
 import { sanitize, graphemes, clip, stringWidth } from './text.js';
 
 export const theme = {
@@ -143,7 +140,7 @@ export class Screen {
   hitAt(x, y) {
     return this.hits.findLast((h) => h.y === y && x >= h.x && x < h.x + h.w);
   }
-  /** A rounded frame with an optional title set into the top edge. */
+
   box(x, y, w, h, title = '', tone = this.theme.muted) {
     const fg = this.theme.line;
     this.put(x, y, '╭' + '─'.repeat(w - 2) + '╮', fg);
@@ -154,10 +151,7 @@ export class Screen {
     this.put(x, y + h - 1, '╰' + '─'.repeat(w - 2) + '╯', fg);
     if (title) this.text(x + 2, y, w - 4, ` ${title} `, tone, this.theme.bg, true);
   }
-  /**
-   * Marks already-drawn cells as an OSC 8 hyperlink; terminals without support
-   * ignore it. URLs can carry API data, so only printable ASCII survives.
-   */
+
   link(x, y, w, url) {
     if (y < 0 || y >= this.height) return;
     this.rowCache[y] = null;

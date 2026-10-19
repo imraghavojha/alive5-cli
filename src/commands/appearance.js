@@ -1,4 +1,3 @@
-// Local appearance preferences. No authentication and no network access.
 import { Option } from 'commander';
 import { appearance, saveAppearance, appearanceChoices } from '../storage.js';
 import { usage } from '../errors.js';

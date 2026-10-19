@@ -1,6 +1,3 @@
-// Documented public Alive5 endpoints. Each function builds the request, then
-// hands the body to ./normalize.js unless --raw asked for the untouched shape.
-
 import { request, items, pagination, query } from './http.js';
 import * as shape from './normalize.js';
 import { dateRange, phone, integer, messageText, timezoneOffset } from './validate.js';
@@ -103,7 +100,6 @@ export async function messages(options) {
   return options.raw ? d : items(d).map(shape.smsRow);
 }
 
-/** Validates a send locally and returns the exact multipart fields that would be posted. */
 export function sendForm(options) {
   if (!options.channel || !options.user)
     throw usage('--channel and --user are required. Find IDs with alive5 channels list.');

@@ -1,6 +1,3 @@
-// API shape to CLI record. Every command and the workspace read these field
-// names, so renaming a record field is a change in exactly one place.
-
 import { timestamp } from './validate.js';
 
 export const channel = (c) => ({
@@ -51,7 +48,6 @@ export const smsRow = (m) => ({
   ...(m.media_url && { media: m.media_url }),
 });
 
-/** Handles both documented transcript shapes: flat SMS/FBM rows and nested live chat. */
 export function conversation(c, type) {
   const t = c.threadData || c;
   const crm = t.crmData || {};
@@ -77,7 +73,6 @@ export function conversation(c, type) {
   };
 }
 
-/** A person's display name, used by lists, previews, and transcripts alike. */
 export const displayName = (r = {}) =>
   r.name ||
   [r.firstName, r.lastName].filter(Boolean).join(' ') ||

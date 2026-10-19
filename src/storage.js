@@ -1,6 +1,3 @@
-// Local configuration: where it lives, how it is read, and one atomic writer
-// shared by credentials and appearance so file modes never drift apart.
-
 import { readFile, mkdir, writeFile, rename, rm, chmod } from 'node:fs/promises';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
@@ -14,7 +11,6 @@ export const configDir = () =>
 
 const path = (name) => join(configDir(), name);
 
-/** Returns the parsed file, or `fallback` when it is missing or unreadable JSON. */
 async function readJson(name, fallback) {
   try {
     return JSON.parse(await readFile(path(name), 'utf8'));
@@ -24,7 +20,6 @@ async function readJson(name, fallback) {
   }
 }
 
-/** Writes through a unique temporary file so a crash can never truncate the real one. */
 async function writeJson(name, value) {
   const dir = configDir();
   await mkdir(dir, { recursive: true, mode: 0o700 });
@@ -80,7 +75,6 @@ export const appearanceDefaults = {
 
 const APPEARANCE = 'appearance.json';
 
-/** Unknown or removed values fall back to the default rather than failing startup. */
 export async function appearance() {
   const value = await readJson(APPEARANCE, null);
   return Object.fromEntries(

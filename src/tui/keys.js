@@ -1,6 +1,3 @@
-// Key handling, one function per panel kind. Each returns nothing and mutates
-// the panel it was given; the Workspace owns state transitions and redraws.
-
 import * as edit from './editor.js';
 import { visibleRows, visibleOptions, layoutLines, bubbles } from './panels.js';
 import { navigation } from './layout.js';
@@ -10,7 +7,6 @@ import { MESSAGE_LIMIT } from '../validate.js';
 
 const PAGE = 10;
 
-/** Lists whose records can be messaged directly, and the key that does it. */
 export const MESSAGE_KEYS = { contacts: 'm', threads: 'r' };
 
 const clamp = (n, max) => Math.max(0, Math.min(max, n));
@@ -23,7 +19,6 @@ const isPrintable = (str, key) =>
 const isDown = (str, key) => key.name === 'down' || str === 'j';
 const isUp = (str, key) => key.name === 'up' || str === 'k';
 
-/** Scrolling shared by the reader and the shortcut overlay. */
 function scroll(panel, str, key, max) {
   if (isDown(str, key)) panel.scroll = clamp(panel.scroll + 1, max);
   else if (isUp(str, key)) panel.scroll = clamp(panel.scroll - 1, max);
@@ -190,7 +185,6 @@ export const handlers = {
   },
 };
 
-/** While `/` filtering is active the list consumes typing instead of shortcuts. */
 function filterKeys(app, panel, str, key) {
   if (key.name === 'return' || key.name === 'escape') {
     panel.filtering = false;
@@ -201,6 +195,3 @@ function filterKeys(app, panel, str, key) {
   else if (str && !key.ctrl && !key.meta && !str.startsWith('\x1b')) panel.filter += str;
   panel.index = 0;
 }
-
-/** Keys that mean the same thing on every panel. */
-export const GLOBAL_KEYS = new Set(['q', 'a', '?']);

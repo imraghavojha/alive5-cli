@@ -1,6 +1,3 @@
-// Terminal lifecycle for the workspace: raw mode, signals, the animation timer,
-// and guaranteed restoration. The Workspace itself stays free of process state.
-
 import { emitKeypressEvents } from 'node:readline';
 import { PassThrough } from 'node:stream';
 import { Terminal } from './terminal.js';
@@ -38,7 +35,7 @@ export async function launchTui(options = {}) {
     scheduled = false;
     terminal.render(workspace.frame(process.stdout.columns || 80, process.stdout.rows || 24));
   };
-  // Many state changes can land in one tick; only one render follows them.
+
   const change = () => {
     if (scheduled) return;
     scheduled = true;

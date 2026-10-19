@@ -1,24 +1,10 @@
-// Cell-native lettering: no image masks, font downloads, or per-frame pixel
-// allocation. FIGlet letterforms were rendered at development time with
-// pyfiglet: Small, Small Slant and Bigfig by Glenn Chappell (Small and Small
-// Slant updates by Paul Burton); Rectangles by David Villegas. Runtime includes
-// rendered words only; font definitions were not modified.
-//
-// Every wordmark is declared as two blocks — the word and the numeral — joined
-// with no gap, so it reads as one word. Joining also yields the exact column
-// where the numeral begins, which is what gets the brand orange. Nothing has to
-// track hand-measured offsets.
-
+// FIGlet output via pyfiglet: Small, Small Slant and Bigfig by Glenn Chappell;
+// Small/Small Slant updates by Paul Burton; Rectangles by David Villegas.
 import { mix } from './screen.js';
 
 export const WORDMARK = 'Alive5';
 export const LOGO_HEIGHT = 7;
 
-/**
- * Joins a word block and a numeral block, returning the lines plus the column
- * the numeral starts at. `kern` is the column count between them: it matches the
- * font's own letter spacing, so the result reads as one word rather than two.
- */
 function join(word, numeral, kern = 0) {
   const height = Math.max(word.length, numeral.length);
   const width = Math.max(...word.map((line) => line.replace(/\s+$/, '').length)) + kern;
@@ -117,7 +103,6 @@ export const logos = [
 
 export const logoById = (id) => logos.find((item) => item.id === id) || logos[0];
 
-/** True when this cell belongs to the numeral and should take the brand orange. */
 const isNumeral = (fiveFrom, char, col) => char === '5' || (fiveFrom != null && col >= fiveFrom);
 
 export function drawLogo(
@@ -167,7 +152,6 @@ export function drawLogo(
   });
 }
 
-/** Deterministic stars along the banner's top and bottom rows only. */
 function drawStars({ screen, x, y, width, height, t }, effect) {
   const theme = screen.theme;
   const count = effect === 'cosmos' && width < 50 ? 6 : 8;
@@ -179,10 +163,6 @@ function drawStars({ screen, x, y, width, height, t }, effect) {
   }
 }
 
-/**
- * Decorations own only empty banner cells. Even at 40 columns none of them can
- * overwrite the lettering, the controls, or another screen region.
- */
 const painter =
   ({ screen, x, y, width, height, artWidth, top, lines }) =>
   (px, py, glyph, color) => {
@@ -221,10 +201,6 @@ function drawPlanet(scene) {
   );
 }
 
-/**
- * Two short comet passes per twelve-second cycle, with four-cell tails. No
- * growing particle list and no work outside this small banner.
- */
 function drawComets(scene) {
   const theme = scene.screen.theme;
   const { width, height, artWidth, t } = scene;

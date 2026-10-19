@@ -1,6 +1,3 @@
-// Input validation shared by commands, the API layer, and the workspace.
-// Each function returns the value in the shape the API expects, or throws.
-
 import { CliError, EXIT, usage } from './errors.js';
 
 export function validateKey(k) {
@@ -59,7 +56,6 @@ export function phone(v, field = 'phone') {
   return s;
 }
 
-/** Live chat offsets look like -5:00 or +0:00. */
 export function timezoneOffset(v) {
   if (!/^[+-](?:0?\d|1[0-4]):[0-5]\d$/.test(v))
     throw usage('--timezone must look like -5:00 or +0:00.');

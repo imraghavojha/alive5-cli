@@ -1,6 +1,3 @@
-// Discovery for agents and for people: the machine-readable schema, shell
-// completions, and local diagnostics. Nothing here needs credentials.
-
 import { platform, release, homedir } from 'node:os';
 import { access, stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -10,7 +7,6 @@ import { configDir } from '../storage.js';
 import { SEND_PATH } from '../api.js';
 import { examples } from './shared.js';
 
-/** One command as plain data: the same shape at every level of the tree. */
 export function describe(cmd) {
   return {
     name: cmd.name(),
@@ -137,9 +133,7 @@ async function diagnostics() {
     try {
       await access(join(entry, 'alive5'));
       found.push(join(entry, 'alive5'));
-    } catch {
-      /* not in this directory */
-    }
+    } catch {}
   }
   return {
     version: VERSION,
@@ -154,7 +148,7 @@ async function diagnostics() {
       colorDepth: process.env.COLORTERM || null,
       noColor: 'NO_COLOR' in process.env,
     },
-    // Only whether a key exists, never any part of its value.
+
     authentication: {
       environmentKey: Boolean(process.env.ALIVE5_API_KEY),
       credentials: await present('credentials.json'),

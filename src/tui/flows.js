@@ -1,8 +1,3 @@
-// What each workspace screen actually does: connecting, the navigation actions,
-// paging, composing, and sending. Panel mechanics live in ./workspace.js, so a
-// change to a task touches this file and a change to the machinery touches that
-// one.
-
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
 import { config, saveConfig, recentSender, saveRecentSender } from '../storage.js';
@@ -31,7 +26,7 @@ const AGENT_GUIDE = [
   '',
   'Piped commands return one JSON envelope and never prompt.',
   'Use --message-file for multiline text.',
-  `Guide: ${fileURLToPath(new URL('../../docs/agents.md', import.meta.url)).replace(homedir(), '~')}`,
+  `Guide: ${fileURLToPath(new URL('../../README.md', import.meta.url)).replace(homedir(), '~')}`,
 ];
 
 const DATE_PRESETS = [
@@ -87,7 +82,6 @@ export function login(app) {
   );
 }
 
-/** Offers common ranges first; "Choose dates…" opens the explicit form. */
 export function dates(app, title, callback) {
   app.select(
     title,
@@ -125,7 +119,6 @@ export async function activate(app) {
   return action();
 }
 
-/** One entry per navigation item, so adding a section is one entry here. */
 function actions(app) {
   return {
     appearance: () => app.show({ kind: 'appearance', index: 0 }, { remember: false }),
@@ -192,10 +185,6 @@ const directory = (app, kind) =>
 
 const lastWeek = () => ({ since: isoDay(7), until: isoDay(-1) });
 
-/**
- * Loads the last week's threads for Home in the background. It never sets the
- * busy state, so Home stays usable while it loads.
- */
 export async function loadRecent(app) {
   if (!app.services.messages) return;
   try {
@@ -207,10 +196,6 @@ export async function loadRecent(app) {
   app.changed();
 }
 
-/**
- * Every action by name, fuzzy-searchable from anywhere with Ctrl+K. Entries
- * that need an account are hidden until one is connected.
- */
 export function palette(app) {
   const signedIn = Boolean(app.state.account);
   const go = (id) => () => {
@@ -248,7 +233,6 @@ export function palette(app) {
   );
 }
 
-/** Loads one page and wires `n` to the next, reusing the same list panel shape. */
 export async function paged(app, title, kind, fetchPage, current, page = 1) {
   const result = await fetchPage(page);
   const data = Array.isArray(result) ? result : result.data;
@@ -270,13 +254,11 @@ export async function paged(app, title, kind, fetchPage, current, page = 1) {
 
 const isPhone = (v) => /^\+\d+$/.test(v || '');
 
-/** Sets a form value and parks its caret at the end. */
 function set(panel, key, value) {
   panel.values[key] = value || '';
   panel.carets[key] = [...panel.values[key]].length;
 }
 
-/** Focus goes to the first field still empty, or the message when all are filled. */
 const firstEmpty = (panel) => {
   const index = panel.fields.findIndex((f) => !panel.values[f.key]?.trim());
   return index < 0 ? panel.fields.length - 1 : index;
@@ -299,7 +281,6 @@ function setUser(panel, user) {
   set(panel, 'user', user ? user.name || user.id : '');
 }
 
-/** Opens a searchable list; choosing returns to the form with the value filled. */
 function pick(app, panel, title, options, apply, subtitle, query, current) {
   app.select(
     title,
@@ -373,10 +354,6 @@ function pickContact(app, panel, query) {
   });
 }
 
-/**
- * Opens the composer with the last sender, or the only choice, already picked.
- * `initial.channel` preselects a thread's channel when replying.
- */
 export function startCompose(app, initial = {}) {
   return app.run('Loading channels', async (current) => {
     const [channels, recent] = await Promise.all([app.services.channels(), recentSender()]);
@@ -391,7 +368,6 @@ export function startCompose(app, initial = {}) {
   });
 }
 
-/** Channel and teammate are fields like the others, so changing one is one step. */
 export function compose(app, { channels = [], channel = null, user = null } = {}, initial = {}) {
   let panel;
   app.form(
@@ -430,7 +406,6 @@ export function compose(app, { channels = [], channel = null, user = null } = {}
   panel.index = firstEmpty(panel);
 }
 
-/** Review shows every consequential choice, not just the message. */
 export function previewPanel(app, form, picked) {
   return {
     kind: 'preview',
@@ -447,11 +422,6 @@ export function previewPanel(app, form, picked) {
   };
 }
 
-/**
- * Sending has four outcomes, and they are reported separately: in flight,
- * accepted, rejected, and unknown. An unknown result keeps the draft and
- * refuses to send again on the next Enter.
- */
 export async function sendPreview(app) {
   const panel = app.state.panel;
   await app.run('Sending your text', async (current) => {
@@ -492,7 +462,6 @@ export function openRecord(app, record) {
   );
 }
 
-/** Composing to a contact found in a list, so the number is never retyped. */
 export function messageRecord(app, record) {
   const phone = record.phone || record.contact?.phone;
   if (!phone) {

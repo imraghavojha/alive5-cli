@@ -1,4 +1,3 @@
-// Reading and sending messages: sms list, sms send, conversations, and reports.
 import { readFile } from 'node:fs/promises';
 import * as p from '@clack/prompts';
 import * as api from '../api.js';
@@ -89,7 +88,6 @@ export function register(program, { write, opts, canPrompt }) {
   ]);
 }
 
-/** Exactly one of --message or --message-file, with `-` meaning standard input. */
 async function messageBody(o) {
   if ((o.message === undefined) === (o.messageFile === undefined))
     throw usage('Provide exactly one of --message or --message-file.');

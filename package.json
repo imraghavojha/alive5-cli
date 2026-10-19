@@ -10,8 +10,6 @@
     "bin",
     "src",
     "README.md",
-    "docs/agents.md",
-    "docs/api.md",
     "docs/media"
   ],
   "engines": {

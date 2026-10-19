@@ -1,6 +1,3 @@
-// Text editing for workspace form fields: a value plus a caret, with the usual
-// cursor movement, insertion, and deletion. Typing no longer only appends.
-
 import { graphemes, sanitize, stringWidth } from './text.js';
 
 const SINGLE_LINE_LIMIT = 500;
@@ -15,7 +12,6 @@ export const length = (value) => parts(value).length;
 
 const clampCaret = (value, caret) => Math.max(0, Math.min(length(value), caret));
 
-/** Inserts text at the caret, honouring the field's own length limit. */
 export function insert(field, value, caret, text) {
   const clean = sanitize(text);
   const addition = field.multiline ? clean : clean.replace(/\n/g, '');
@@ -43,7 +39,6 @@ export function deleteForward(value, caret) {
   return { value: [...chars.slice(0, at), ...chars.slice(at + 1)].join(''), caret: at };
 }
 
-/** Ctrl+W: removes the word before the caret, including any trailing spaces. */
 export function deleteWord(value, caret) {
   const chars = parts(value);
   let at = clampCaret(value, caret);
@@ -70,10 +65,6 @@ const lineBounds = (value, caret) => {
 export const lineStart = (value, caret) => lineBounds(value, caret).start;
 export const lineEnd = (value, caret) => lineBounds(value, caret).end;
 
-/**
- * Moves the caret one logical line up or down. Returns null at the first or last
- * line so the caller can move focus to the next field instead.
- */
 export function moveLine(value, caret, direction) {
   const chars = parts(value);
   const { start, end, column } = lineBounds(value, caret);
@@ -87,10 +78,6 @@ export function moveLine(value, caret, direction) {
   return next.start + Math.min(column, next.end - next.start);
 }
 
-/**
- * Wraps a value for display and reports where the caret lands. Offsets are kept
- * so the caret stays correct through soft wrapping and multi-byte graphemes.
- */
 export function wrapWithCaret(value, width, caret = 0) {
   const chars = parts(value);
   const lines = [];

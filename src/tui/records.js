@@ -1,6 +1,3 @@
-// Presentation for API records inside the workspace: compact rows for lists and
-// a labelled detail view for one record. Column choices live here only.
-
 import { displayName } from '../normalize.js';
 
 const pad = (n) => String(n).padStart(2, '0');
@@ -12,7 +9,6 @@ export function shortTime(v) {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
 }
 
-/** Lists say how long ago something happened; the detail view keeps the exact time. */
 export function ago(v, now = Date.now()) {
   const seconds = (now - Date.parse(v)) / 1000;
   if (Number.isNaN(seconds)) return plain(v);
@@ -66,10 +62,6 @@ const LABELS = {
 
 export const label = (key) => LABELS[key] || key;
 
-/**
- * Describes a record collection as a table: the columns worth showing, and one
- * row of cells per record. Full field detail stays available on demand.
- */
 export function describe(kind, records) {
   const spec = TABLES[kind] || TABLES.generic(records);
   return {
@@ -110,7 +102,7 @@ const TABLES = {
     title: (t) => t.name,
     columns: [
       column('name', 'CONTACT', 18),
-      // Flexible: its width is a minimum, and narrow lists keep it over WHEN.
+
       column(
         'last',
         'LAST MESSAGE',
@@ -158,7 +150,6 @@ export function threads(messages) {
     .sort((a, b) => byTime(b, a));
 }
 
-/** A transcript from `conversations list` as the same thread shape. */
 export function fromConversation(c) {
   const known = [displayName(c.contact), c.contact?.firstName, c.contact?.phone].filter(Boolean);
   const list = (c.messages || [])
@@ -184,16 +175,10 @@ const thread = (fields, messages) => ({
   messages,
 });
 
-/** The searchable text for a row, used by list filtering. */
 export const searchText = (row) => [...row.cells, row.record.phone].join(' ').toLowerCase();
 
-/** One detail row: a label, its value, and a link where the value has one. */
 const pair = (key, v) => [label(key), value(v, key), LINKS[key]?.(v)];
 
-/**
- * Detail for one record. Plain strings are headings or prose; arrays are
- * [label, value, link] rows that the panels draw as aligned columns.
- */
 export function detailLines(record) {
   const lines = [];
   for (const [key, v] of Object.entries(record)) {
@@ -210,11 +195,9 @@ export function detailLines(record) {
   return lines;
 }
 
-/** Labelled rows for a single non-list result, such as a send outcome. */
 export const resultLines = (data) =>
   Object.entries(data || {})
     .filter(([, v]) => v != null && v !== '')
     .map(([k, v]) => pair(k, v));
 
-/** A detail row as one line of text, for the linear workspace. */
 export const lineText = (line) => (Array.isArray(line) ? `${line[0]}: ${line[1]}` : line);

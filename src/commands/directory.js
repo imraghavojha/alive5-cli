@@ -1,4 +1,3 @@
-// Read-only discovery commands: channels, users, tags, and contacts.
 import * as api from '../api.js';
 import { group, examples, pageOption } from './shared.js';
 

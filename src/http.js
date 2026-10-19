@@ -1,6 +1,3 @@
-// Transport: one request function, the Alive5 response envelope, secret removal,
-// and the list/pagination shapes the API returns. No command logic lives here.
-
 import { CliError, EXIT, httpError } from './errors.js';
 import { USER_AGENT } from './meta.js';
 import { key } from './storage.js';
@@ -9,7 +6,6 @@ const ALLOWED_ORIGINS = ['https://api.alive5.com', 'https://api-v2.alive5.com'];
 
 const SECRET_KEYS = /(api.?key|token|password|secret|alivesecure_key|aliveOpentokSession)/i;
 
-/** Drops secret-looking fields and replaces the live API key wherever it appears. */
 export function clean(value, secret) {
   if (Array.isArray(value)) return value.map((v) => clean(v, secret));
   if (value && typeof value === 'object')
@@ -123,7 +119,6 @@ export async function request(
   }
 }
 
-/** Alive5 returns lists as a bare array, `Items`, or `items` depending on the endpoint. */
 export function items(data) {
   if (Array.isArray(data)) return data;
   if (Array.isArray(data?.Items)) return data.Items;

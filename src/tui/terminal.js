@@ -18,7 +18,7 @@ export class Terminal {
     // Alternate screen, hidden cursor, no wrap, bracketed paste, SGR mouse.
     this.output.write('\x1b[?1049h\x1b[?25l\x1b[?7l\x1b[?2004h\x1b[?1000h\x1b[?1006h');
   }
-  /** Writes only the rows that changed, wrapped in a synchronized update. */
+
   render(screen) {
     if (this.blocked || this.closed) return;
     const rows = screen.rows(this.depth);
