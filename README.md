@@ -1,6 +1,6 @@
 # Alive5 CLI
 
-<img src="docs/media/hero.png" width="500" alt="The alive5 wordmark beside an orange 3D chat bubble with a terminal prompt">
+<img src="docs/media/hero.png" width="560" alt="The alive5 wordmark beside a cute retro cream computer with a terminal-prompt face">
 
 Read conversations, reply, and send texts from your terminal. The same commands return clean JSON for scripts and AI agents.
 
