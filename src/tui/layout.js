@@ -52,12 +52,12 @@ const headerRows = (logo) =>
 
 export function layout(width, height, kind = 'home', logo = null) {
   const left = 3;
-  const splitList = kind === 'list' && width >= 100;
-
-  const splitHome = kind === 'home' && width >= 110;
-  const w = Math.min(splitList || splitHome ? 154 : 78, width - left * 2);
+  const wide = width >= 110;
+  const splitList = kind === 'list' && wide;
+  const splitHome = kind === 'home' && wide;
+  const w = Math.min(wide ? 154 : 78, width - left * 2);
   const listWidth = Math.floor(w * 0.58);
-  const header = headerRows(showsBanner(kind) ? logo : null);
+  const header = headerRows(logo);
   const top = header + 1;
 
   const bottom = height - 3;
@@ -66,6 +66,7 @@ export function layout(width, height, kind = 'home', logo = null) {
     tooSmall: width < MIN_WIDTH || height < MIN_HEIGHT,
     logoWidth: Math.min(w, 78),
     logoHeight: header - 3,
+    banner: { x: left, y: 3, width: Math.min(w, 78), height: header - 3 },
     x: left,
     left,
     top,

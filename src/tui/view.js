@@ -1,7 +1,6 @@
 import { Screen } from './screen.js';
 import { wrap, stringWidth } from './text.js';
 import { WORDMARK, drawLogo } from './logo.js';
-import { sectionMascotArea, drawSectionMascot } from './mascot.js';
 import { layout, showsBanner, MIN_WIDTH, MIN_HEIGHT } from './layout.js';
 import { panels } from './panels.js';
 import { VERSION } from '../meta.js';
@@ -63,33 +62,17 @@ export function view(state, width, height, time = 0) {
     return s;
   }
   const workspaceName = state.account?.org_name || 'Connect your workspace';
-  const mascotArea = sectionMascotArea(state, width);
-  const headerWidth = mascotArea ? Math.min(l.w, mascotArea.x - l.x - 2) : l.w;
-  if (state.notice) toast(s, { ...l, w: headerWidth }, state.notice, stringWidth(workspaceName));
-  if (showsBanner(panel.kind)) {
-    s.text(3, 1, l.w, workspaceName, s.theme.muted);
-    drawLogo(s, {
-      x: 3,
-      y: 3,
-      width: l.logoWidth,
-      height: l.logoHeight,
-      time,
-      motion: state.motion,
-      effect: state.effect,
-      variant: state.logo,
-      mascot: state.mascot,
-    });
-  } else {
-    s.text(3, 1, headerWidth, WORDMARK, s.theme.ink, s.theme.bg, true);
-    s.text(
-      3 + WORDMARK.length + 2,
-      1,
-      Math.max(0, headerWidth - WORDMARK.length - 2),
-      workspaceName,
-      s.theme.muted,
-    );
-    drawSectionMascot(s, state, width, time);
-  }
+  if (state.notice) toast(s, l, state.notice, stringWidth(workspaceName));
+  s.text(3, 1, l.w, workspaceName, s.theme.muted);
+  drawLogo(s, {
+    ...l.banner,
+    time,
+    motion: state.motion,
+    effect: showsBanner(panel.kind) ? state.effect : 'none',
+    variant: state.logo,
+    mascot: state.mascot,
+    section: panel.section,
+  });
   panels[panel.kind]?.(s, l, panel, state);
   footer(s, state, panel, l, width, height);
   return s;

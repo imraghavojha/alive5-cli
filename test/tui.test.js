@@ -663,8 +663,8 @@ test('continuous effects stay in the banner and section motion stays in the head
   app.compose({ from: '+15555550100', to: '+15555550101' });
   const c = app.frame(80, 24, app.replayAt + 1200).rows(24);
   const d = app.frame(80, 24, app.replayAt + 2400).rows(24);
-  assert.notDeepEqual(c.slice(0, 4), d.slice(0, 4));
-  assert.deepEqual(c.slice(4), d.slice(4));
+  assert.notDeepEqual(c.slice(3, 10), d.slice(3, 10));
+  assert.deepEqual(c.slice(10), d.slice(10));
 });
 
 test('Cosmos preserves the label and content while the desktop and comets animate', () => {

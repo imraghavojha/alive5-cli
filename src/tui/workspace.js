@@ -6,7 +6,7 @@ import { displayName } from '../normalize.js';
 import { sanitize } from './text.js';
 import { visibleRows, layoutLines, bubbles } from './panels.js';
 import { drawLogo, logos } from './logo.js';
-import { mascots, drawSectionMascot } from './mascot.js';
+import { mascots } from './mascot.js';
 import { view, SHORTCUTS } from './view.js';
 import { layout, navigation, showsBanner } from './layout.js';
 import { handlers } from './keys.js';
@@ -459,22 +459,19 @@ export class Workspace {
       this.cacheKey = cacheKey;
     }
     const screen = this.cachedScreen;
-    if (!l.tooSmall && showsBanner(this.state.panel.kind)) {
-      screen.fill(3, 3, l.logoWidth, l.logoHeight, screen.theme.bg);
+    if (!l.tooSmall && (showsBanner(panel.kind) || panel.section)) {
+      screen.fill(l.banner.x, l.banner.y, l.banner.width, l.banner.height, screen.theme.bg);
       drawLogo(screen, {
-        x: 3,
-        y: 3,
+        ...l.banner,
         variant: this.state.logo,
         mascot: this.state.mascot,
-        width: l.logoWidth,
-        height: l.logoHeight,
         time: Math.max(0, elapsed) / 1000,
         entrance: this.state.entrance,
         motion: this.state.motion,
-        effect: this.state.effect,
+        effect: showsBanner(panel.kind) ? this.state.effect : 'none',
+        section: panel.section,
       });
-    } else if (!l.tooSmall)
-      drawSectionMascot(screen, this.state, width, Math.max(0, elapsed) / 1000);
+    }
     return screen;
   }
 }

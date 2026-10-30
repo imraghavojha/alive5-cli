@@ -118,6 +118,7 @@ export function drawLogo(
     effect = 'cosmos',
     variant = 'frame',
     mascot = 'isometric-desktop',
+    section,
   },
 ) {
   const theme = screen.theme;
@@ -125,14 +126,25 @@ export function drawLogo(
   const character = mascotById(mascot);
   // Every variant fits the smallest supported terminal. A narrower command
   // banner keeps readable text instead of clipping letterforms.
-  const fits = Math.max(...logo.lines.map((line) => line.length)) <= width - character.width - 3;
+  const fits = Math.max(...logo.lines.map((line) => line.length)) <= width - character.width - 10;
   const lines = fits ? logo.lines : [WORDMARK];
   const fiveFrom = fits && lines.length > 1 ? logo.fiveFrom : null;
   const artWidth = Math.max(...lines.map((line) => line.length));
   const top = y + Math.floor((height - lines.length) / 2);
   const animated = motion === 'full' || (motion === 'subtle' && time < 0.85);
   const t = animated ? time : 0;
-  const scene = { screen, x, y, width, height, artWidth, top, lines, t };
+  const scene = {
+    screen,
+    x,
+    y,
+    width,
+    height,
+    artWidth,
+    top,
+    lines,
+    t,
+    section: animated ? section : null,
+  };
 
   if ((animated && effect === 'orbit') || effect === 'cosmos') drawStars(scene, effect);
   if (effect === 'cosmos') {

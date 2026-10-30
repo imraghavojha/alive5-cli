@@ -55,32 +55,6 @@ export function drawMascot({ screen, x, y, width, height, artWidth, t, section }
   if (section) drawSectionDetail(screen, x + left, y + top, mascot, section, t, palette);
 }
 
-// Task headers have four free rows above the content. Keep animation inside
-// this reserved area, including on the smallest supported terminal.
-export function sectionMascotArea(state, width) {
-  if (!state.panel.section) return null;
-  const mascot = mascotById(state.mascot);
-  const w = mascot.width + 10;
-  return { x: width - 3 - w, y: 0, width: w, height: 4 };
-}
-
-export function drawSectionMascot(screen, state, width, time = 0) {
-  const area = sectionMascotArea(state, width);
-  if (!area) return;
-  const animated = state.motion === 'full' || (state.motion === 'subtle' && time < 0.85);
-  screen.fill(area.x, area.y, area.width, area.height, screen.theme.bg);
-  drawMascot(
-    {
-      screen,
-      ...area,
-      artWidth: -2,
-      t: animated ? time : 0,
-      section: animated ? state.panel.section : null,
-    },
-    mascotById(state.mascot),
-  );
-}
-
 function drawSectionDetail(screen, left, top, mascot, section, time, palette) {
   const phase = Math.floor(time / 0.34) % 16;
   const cardX = left - 9;

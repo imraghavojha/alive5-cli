@@ -7,8 +7,10 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { spawn } from 'node-pty';
 import headless from '@xterm/headless';
 import { Workspace } from '../src/tui/workspace.js';
-import { mascots, sectionMascotArea } from '../src/tui/mascot.js';
+import { mascots } from '../src/tui/mascot.js';
 import { themes } from '../src/tui/screen.js';
+import { layout } from '../src/tui/layout.js';
+import { logos } from '../src/tui/logo.js';
 import { preparePty } from '../scripts/pty-helper.mjs';
 
 // Exercise motion even when the test runner itself disables terminal colors.
@@ -51,20 +53,25 @@ test('all section animations leave content and header text still across widths, 
         const app = create({ mascot: mascot.id, theme });
         await open(app, section);
         for (const width of [40, 64, 80, 110]) {
+          const { top, banner } = layout(width, 24, app.state.panel.kind, app.state.logo);
           const first = snapshot(app, width, 0);
           const active = snapshot(app, width, 2400);
           assert.notDeepEqual(
-            first.slice(0, 4),
-            active.slice(0, 4),
+            first.slice(3, top),
+            active.slice(3, top),
             `${mascot.id} ${section} ${theme} ${width}`,
           );
-          assert.deepEqual(first.slice(4), active.slice(4), 'animation cannot move task content');
-          const area = sectionMascotArea(app.state, width);
+          assert.deepEqual(
+            first.slice(top),
+            active.slice(top),
+            'animation cannot move task content',
+          );
+          const cardX = banner.x + banner.width - mascot.width - 10;
           const left = (time) =>
             app
               .frame(width, 24, app.replayAt + time)
-              .cells.slice(0, 4)
-              .map((row) => row.slice(0, area.x).map((c) => ({ ...c })));
+              .cells.slice(0, top)
+              .map((row) => row.slice(0, cardX).map((c) => ({ ...c })));
           assert.deepEqual(left(0), left(2400), 'animation cannot overwrite header text');
           assert.ok(app.frame(width, 24).plain().includes('Alive5'));
         }
@@ -84,7 +91,7 @@ test('wider bubbles and cards appear, clear cleanly, and conversations alternate
       .frame(80, 24, app.replayAt + time)
       .plain()
       .split('\n')
-      .slice(0, 4)
+      .slice(3, 8)
       .join('\n');
   await open(app, 'messages');
   assert.ok(header(2200).includes('╭─────╮'));
@@ -158,7 +165,7 @@ test(
   async () => {
     await preparePty();
     for (const mascot of mascots) {
-      const term = new headless.Terminal({ cols: 80, rows: 24, allowProposedApi: true });
+      const term = new headless.Terminal({ cols: 120, rows: 24, allowProposedApi: true });
       const env = {
         ...process.env,
         DEMO_MASCOT: mascot.id,
@@ -168,7 +175,7 @@ test(
         COLORTERM: 'truecolor',
       };
       const p = spawn(process.execPath, ['scripts/tui-demo.mjs'], {
-        cols: 80,
+        cols: 120,
         rows: 24,
         cwd: process.cwd(),
         env,
@@ -178,7 +185,7 @@ test(
       const lines = () =>
         Array.from(
           { length: term.rows },
-          (_, y) => term.buffer.active.getLine(y)?.translateToString(true) || '',
+          (_, y) => term.buffer.active.getLine(y)?.translateToString(true, 0, term.cols) || '',
         );
       const until = async (pattern) => {
         for (let i = 0; i < 100; i++) {
@@ -189,14 +196,33 @@ test(
       };
       try {
         await until('Compose a text');
+        const spriteRow = mascot.id === 'isometric-desktop' ? 4 : 3;
+        const edge = mascot.id === 'isometric-desktop' ? '┌──────┐' : '╭─────╮';
+        const homeX = lines()[spriteRow].lastIndexOf(edge);
+        const homeWidth = lines()[21].trimEnd().length;
+        assert.ok(homeX > 0);
         p.write('2\r');
         await until('Read recent messages');
         p.write('\r');
         await until('Recent messages');
         await until('╭─────╮');
-        const body = lines().slice(4);
+        const body = lines().slice(9);
         await until('···');
-        assert.deepEqual(lines().slice(4), body);
+        assert.deepEqual(lines().slice(9), body);
+        assert.equal(
+          lines()[spriteRow].lastIndexOf(edge),
+          homeX,
+          'mascot shifted at section entry',
+        );
+        assert.equal(lines()[21].trimEnd().length, homeWidth, 'section expanded beyond Home');
+        p.resize(100, 24);
+        term.resize(100, 24);
+        await sleep(150);
+        assert.equal(
+          lines()[21].trimEnd().length,
+          81,
+          'list expanded at the old 100-column breakpoint',
+        );
         p.resize(40, 24);
         term.resize(40, 24);
         await until('╭─────╮');
@@ -217,3 +243,88 @@ test(
     }
   },
 );
+
+test('navigation keeps the same content bounds, wordmark, and complete mascot at every terminal width', async () => {
+  for (const width of [40, 64, 80, 99, 100, 109, 110, 160, 240]) {
+    for (const logo of logos) {
+      const home = layout(width, 24, 'home', logo.id);
+      for (const kind of [
+        'select',
+        'list',
+        'form',
+        'preview',
+        'transcript',
+        'reader',
+        'help',
+        'appearance',
+      ]) {
+        const next = layout(width, 24, kind, logo.id);
+        assert.equal(next.w, home.w, `content width changed for ${kind} at ${width}`);
+        assert.equal(next.top, home.top, `content top changed for ${kind} at ${width}`);
+        assert.deepEqual(next.banner, home.banner);
+      }
+      for (const mascot of mascots) {
+        const app = create({ mascot: mascot.id, logo: logo.id, motion: 'off', effect: 'signal' });
+        const x = home.banner.x + home.banner.width - mascot.width - 1;
+        const y = home.banner.y + Math.floor((home.banner.height - mascot.height) / 2);
+        const sprite = () =>
+          app
+            .frame(width, 24)
+            .cells.slice(y, y + mascot.height)
+            .map((row) =>
+              row
+                .slice(x, x + mascot.width)
+                .map((c) => c.ch)
+                .join(''),
+            );
+        const initial = sprite();
+        const wordmark = () =>
+          app
+            .frame(width, 24)
+            .cells.slice(3, home.top)
+            .map((row) =>
+              row
+                .slice(3, x - 9)
+                .map((c) => c.ch)
+                .join(''),
+            );
+        const initialWordmark = wordmark();
+        assert.deepEqual(initial, mascot.frames[0].rows);
+        for (const section of ['messages', 'conversations', 'contacts', 'compose']) {
+          await open(app, section);
+          assert.deepEqual(sprite(), initial, 'mascot moved or was clipped after navigation');
+          assert.deepEqual(wordmark(), initialWordmark, 'wordmark changed after navigation');
+          const screen = app.frame(width, 24);
+          assert.equal(
+            screen.cells
+              .slice(0, 3)
+              .some((row) => row.slice(x, x + mascot.width).some((c) => c.ch.trim())),
+            false,
+            'mascot must keep the top margin',
+          );
+          assert.equal(
+            screen.plain().split('\n')[21].trimEnd().length,
+            home.x + home.w,
+            'footer width must not jump',
+          );
+        }
+        // Every animation frame must stay in the same banner, including bubbles at their extremes.
+        app.state.motion = 'full';
+        app.changed();
+        for (const elapsed of [0, 800, 1200, 2200, 2800, 3800, 5200]) {
+          const screen = app.frame(width, 24, app.replayAt + elapsed);
+          const outside = screen.cells.slice(0, home.top).map((row) =>
+            row
+              .slice(home.banner.x + home.banner.width)
+              .map((c) => c.ch)
+              .join(''),
+          );
+          assert.ok(
+            outside.every((row) => !row.trim()),
+            'header escaped the banner right edge',
+          );
+        }
+      }
+    }
+  }
+});
