@@ -4,7 +4,9 @@
 
 Read conversations, reply, and send texts from your terminal. The same commands return clean JSON for scripts and AI agents.
 
-<img src="docs/media/demo.gif" width="800" alt="The workspace: Home, a conversation, a reply, and contact search">
+<img src="docs/media/demo.gif" width="800" alt="The current workspace with the Isometric Desktop mascot: Home, a conversation, a reply, and contact search">
+
+[Watch the full-resolution demo](docs/media/demo.mp4)
 
 ## Installation
 
@@ -55,7 +57,7 @@ Run `alive5` with no arguments.
 | `?`               | Every shortcut                                              |
 | `q`               | Quit. `Ctrl+C` always quits.                                |
 
-**Appearance.** Press `a` to choose one of eight wordmarks, a computer mascot, a banner effect, and a Dark, Light, Terminal, or High contrast theme. Terminal colors and the compact Isometric Desktop are the defaults for new installs; select the Mascot row and use ←/→ to switch to Pocket Macintosh. Press `s` to save. Motion defaults to Full (continuous animation); Subtle plays an entrance and then holds still, and Off pauses it. Saved theme and motion preferences are preserved. Both mascots show typing dots in Messages, a typing cursor in Compose, a contact card in Contacts, and alternating speech bubbles in Conversations. These animate in the header at about 6 fps, leaving task content still. `NO_COLOR`, `ALIVE5_NO_ANIMATION=1`, or `--no-animation` turn motion off. You can also run `alive5 appearance set --mascot pocket-macintosh --motion full` or `alive5 appearance set --mascot isometric-desktop`. [Compare the wordmarks](docs/media/logos-v3.png)
+**Appearance.** Press `a` to choose one of eight wordmarks, a computer mascot, a banner effect, and a Dark, Light, Terminal, or High contrast theme. Terminal colors and the compact Isometric Desktop are the defaults for new installs; select the Mascot row and use ←/→ to switch to Pocket Macintosh. Press `s` to save. Motion defaults to Full (continuous animation); Subtle plays an entrance and then holds still, and Off pauses it. Saved theme and motion preferences are preserved. Both mascots show typing dots in Messages, a typing cursor in Compose, a contact card in Contacts, and alternating speech bubbles in Conversations. These animate in the header at about 6 fps, leaving task content still. `NO_COLOR`, `ALIVE5_NO_ANIMATION=1`, or `--no-animation` turn motion off. You can also run `alive5 appearance set --mascot pocket-macintosh --motion full` or `alive5 appearance set --mascot isometric-desktop`. [Compare the wordmarks](docs/media/logos-v3.png) · [See both mascots in motion](docs/media/logo-motion.gif)
 
 **Line mode.** `alive5 --linear` runs the same workspace as plain lines of text, without full-screen drawing. It is meant for screen readers, logs, and slow connections, but it has not yet been tested with a screen reader.
 
