@@ -107,7 +107,7 @@ export async function launchTui(options = {}) {
   draw();
 
   // One capped scheduler. Idle task panels perform no render work; a pending
-  // request turns the spinner, and the banner animates on Home and Appearance.
+  // request turns the spinner; banners and section headers share one scheduler.
   let lastAnimation = 0;
   let lastSpin = 0;
   let notice = '';
@@ -127,7 +127,7 @@ export async function launchTui(options = {}) {
       workspace.state.tick++;
       workspace.changed();
     }
-    if (!showsBanner(workspace.state.panel.kind)) return;
+    if (!showsBanner(workspace.state.panel.kind) && !workspace.state.panel.section) return;
     const settling = now - workspace.replayAt < ENTRANCE_WINDOW_MS;
     if (!settling && now - lastAnimation < ANIMATION_INTERVAL_MS) return;
     lastAnimation = now;

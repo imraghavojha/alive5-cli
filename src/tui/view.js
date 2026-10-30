@@ -1,6 +1,7 @@
 import { Screen } from './screen.js';
 import { wrap, stringWidth } from './text.js';
 import { WORDMARK, drawLogo } from './logo.js';
+import { sectionMascotArea, drawSectionMascot } from './mascot.js';
 import { layout, showsBanner, MIN_WIDTH, MIN_HEIGHT } from './layout.js';
 import { panels } from './panels.js';
 import { VERSION } from '../meta.js';
@@ -62,7 +63,9 @@ export function view(state, width, height, time = 0) {
     return s;
   }
   const workspaceName = state.account?.org_name || 'Connect your workspace';
-  if (state.notice) toast(s, l, state.notice, stringWidth(workspaceName));
+  const mascotArea = sectionMascotArea(state, width);
+  const headerWidth = mascotArea ? Math.min(l.w, mascotArea.x - l.x - 2) : l.w;
+  if (state.notice) toast(s, { ...l, w: headerWidth }, state.notice, stringWidth(workspaceName));
   if (showsBanner(panel.kind)) {
     s.text(3, 1, l.w, workspaceName, s.theme.muted);
     drawLogo(s, {
@@ -77,9 +80,15 @@ export function view(state, width, height, time = 0) {
       mascot: state.mascot,
     });
   } else {
-    // Task screens keep a single-line header so the panel gets the height.
-    s.text(3, 1, l.w, WORDMARK, s.theme.ink, s.theme.bg, true);
-    s.text(3 + WORDMARK.length + 2, 1, l.w - WORDMARK.length - 2, workspaceName, s.theme.muted);
+    s.text(3, 1, headerWidth, WORDMARK, s.theme.ink, s.theme.bg, true);
+    s.text(
+      3 + WORDMARK.length + 2,
+      1,
+      Math.max(0, headerWidth - WORDMARK.length - 2),
+      workspaceName,
+      s.theme.muted,
+    );
+    drawSectionMascot(s, state, width, time);
   }
   panels[panel.kind]?.(s, l, panel, state);
   footer(s, state, panel, l, width, height);

@@ -57,6 +57,11 @@ function rgb(cell, background) {
     : '#' + n.toString(16).padStart(6, '0');
 }
 export async function capture(name) {
+  if (
+    process.env.CAPTURE_SECTION_MOTION &&
+    ['03-compose', '05-contacts', '07-messages', '08-transcript'].includes(name)
+  )
+    await sleep(1400);
   await new Promise((r) => emulator.write('', r));
   const cw = 11,
     ch = 23,

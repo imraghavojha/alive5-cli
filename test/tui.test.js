@@ -650,7 +650,7 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
   }
 });
 
-test('continuous effects persist, stay inside the banner, and stop on task screens', async () => {
+test('continuous effects stay in the banner and section motion stays in the header', async () => {
   const app = new Workspace({
     account: { org_name: 'Example' },
     settings: { motion: 'full', logo: 'slash', effect: 'orbit' },
@@ -661,8 +661,10 @@ test('continuous effects persist, stay inside the banner, and stop on task scree
   assert.notDeepEqual(a.slice(3, 10), b.slice(3, 10));
   assert.deepEqual(a.slice(10), b.slice(10));
   app.compose({ from: '+15555550100', to: '+15555550101' });
-  const c = app.frame(80, 24, app.replayAt + 8000).rows(24);
-  assert.deepEqual(c, app.frame(80, 24, app.replayAt + 12000).rows(24));
+  const c = app.frame(80, 24, app.replayAt + 1200).rows(24);
+  const d = app.frame(80, 24, app.replayAt + 2400).rows(24);
+  assert.notDeepEqual(c.slice(0, 4), d.slice(0, 4));
+  assert.deepEqual(c.slice(4), d.slice(4));
 });
 
 test('Cosmos preserves the label and content while the desktop and comets animate', () => {

@@ -82,7 +82,7 @@ export function login(app) {
   );
 }
 
-export function dates(app, title, callback) {
+export function dates(app, title, callback, section) {
   app.select(
     title,
     DATE_PRESETS.map((p) => ({ label: p.label, value: p })),
@@ -92,6 +92,7 @@ export function dates(app, title, callback) {
       return app.run('Loading', (current) => callback(range, current));
     },
     "Dates use this computer's calendar, not the workspace timezone.",
+    { section },
   );
 }
 
@@ -123,10 +124,21 @@ function actions(app) {
   return {
     appearance: () => app.show({ kind: 'appearance', index: 0 }, { remember: false }),
     agents: () =>
-      app.reader('Built for your agent', AGENT_GUIDE, 'Quiet commands. Predictable JSON.'),
+      app.reader(
+        'Built for your agent',
+        AGENT_GUIDE,
+        'Quiet commands. Predictable JSON.',
+        null,
+        null,
+      ),
     send: () => startCompose(app),
     messages: () =>
-      dates(app, 'Read recent messages', (range, current) => messages(app, range, current)),
+      dates(
+        app,
+        'Read recent messages',
+        (range, current) => messages(app, range, current),
+        'messages',
+      ),
     history: () =>
       app.select(
         'Conversation type',
@@ -149,6 +161,7 @@ function actions(app) {
             ),
           ),
         'This filters conversation start dates.',
+        { section: 'conversations' },
       ),
     directory: () =>
       app.select(
@@ -159,6 +172,8 @@ function actions(app) {
           { label: 'Tags', value: 'tags' },
         ],
         (kind) => directory(app, kind),
+        undefined,
+        { section: 'contacts' },
       ),
   };
 }
@@ -166,7 +181,8 @@ function actions(app) {
 async function messages(app, range, current) {
   const rows = await app.services.messages(range);
   const summary = `${rows.length} messages`;
-  if (current()) app.list('Recent messages', 'threads', records.threads(rows), { summary });
+  if (current())
+    app.list('Recent messages', 'threads', records.threads(rows), { summary }, null, 'messages');
 }
 
 const directory = (app, kind) =>
@@ -229,7 +245,7 @@ export function palette(app) {
       return run();
     },
     'Every action, searchable. Esc closes.',
-    { search: true },
+    { search: true, section: null },
   );
 }
 

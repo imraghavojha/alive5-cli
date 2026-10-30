@@ -6,7 +6,7 @@ import { displayName } from '../normalize.js';
 import { sanitize } from './text.js';
 import { visibleRows, layoutLines, bubbles } from './panels.js';
 import { drawLogo, logos } from './logo.js';
-import { mascots } from './mascot.js';
+import { mascots, drawSectionMascot } from './mascot.js';
 import { view, SHORTCUTS } from './view.js';
 import { layout, navigation, showsBanner } from './layout.js';
 import { handlers } from './keys.js';
@@ -65,6 +65,12 @@ export class Workspace {
   }
 
   show(panel, { remember = true } = {}) {
+    const previous = this.state.panel;
+    const plain =
+      ['home', 'appearance', 'help'].includes(panel.kind) ||
+      panel.fields?.some((f) => f.key === 'apiKey');
+    if (!plain && panel.section === undefined) panel.section = previous.section;
+    if (previous.section !== panel.section) this.replayAt = performance.now();
     if (remember && this.state.panel.kind !== 'home') this.history.push(this.state.panel);
     this.state.panel = panel;
     this.state.error = '';
@@ -74,6 +80,7 @@ export class Workspace {
   back() {
     const previous = this.history.pop();
     if (!previous) return this.home();
+    if (previous.section !== this.state.panel.section) this.replayAt = performance.now();
     this.state.panel = previous;
     this.state.error = '';
     this.state.notice = '';
@@ -99,7 +106,13 @@ export class Workspace {
 
   // ---- panel constructors ------------------------------------------------
 
-  select(title, options, onSelect, subtitle, { search = false, query = '', index = 0 } = {}) {
+  select(
+    title,
+    options,
+    onSelect,
+    subtitle,
+    { search = false, query = '', index = 0, section } = {},
+  ) {
     if (!options.length) throw new CliError('NO_OPTIONS', 'No matching options are available.');
     this.show({
       kind: 'select',
@@ -110,6 +123,7 @@ export class Workspace {
       subtitle,
       search,
       query,
+      section,
     });
   }
 
@@ -119,6 +133,7 @@ export class Workspace {
       kind: 'form',
       title,
       fields,
+      section: fields.some((f) => f.key === 'message') ? 'compose' : undefined,
       index: 0,
       values,
       carets: Object.fromEntries(fields.map((f) => [f.key, edit.length(values[f.key])])),
@@ -127,15 +142,15 @@ export class Workspace {
     });
   }
 
-  reader(title, lines, subtitle = '', next = null) {
-    this.show({ kind: 'reader', title, lines, scroll: 0, subtitle, next });
+  reader(title, lines, subtitle = '', next = null, section) {
+    this.show({ kind: 'reader', title, lines, scroll: 0, subtitle, next, section });
   }
 
   result(title, data, subtitle = '') {
     this.reader(title, records.resultLines(data), subtitle);
   }
 
-  list(title, kind, data, meta = {}, next = null) {
+  list(title, kind, data, meta = {}, next = null, section) {
     const { columns, rows } = records.describe(kind, data);
     const page = meta.page
       ? `page ${meta.page}${meta.totalPages ? ` of ${meta.totalPages}` : ''}`
@@ -144,6 +159,13 @@ export class Workspace {
       kind: 'list',
       title,
       recordKind: kind,
+      section:
+        section ||
+        (['contacts', 'channels', 'tags'].includes(kind)
+          ? 'contacts'
+          : kind === 'threads'
+            ? 'conversations'
+            : undefined),
       columns,
       rows: rows.map((r) => ({ ...r, search: records.searchText(r) })),
       index: 0,
@@ -161,7 +183,7 @@ export class Workspace {
     const subtitle = [thread.phone !== thread.name && thread.phone, count, thread.channelName]
       .filter(Boolean)
       .join('  ·  ');
-    this.show({ kind: 'transcript', thread, subtitle, scroll: Infinity });
+    this.show({ kind: 'transcript', thread, subtitle, scroll: Infinity, section: 'conversations' });
   }
 
   help() {
@@ -451,7 +473,8 @@ export class Workspace {
         motion: this.state.motion,
         effect: this.state.effect,
       });
-    }
+    } else if (!l.tooSmall)
+      drawSectionMascot(screen, this.state, width, Math.max(0, elapsed) / 1000);
     return screen;
   }
 }
