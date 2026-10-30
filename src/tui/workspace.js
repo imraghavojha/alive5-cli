@@ -6,6 +6,7 @@ import { displayName } from '../normalize.js';
 import { sanitize } from './text.js';
 import { visibleRows, layoutLines, bubbles } from './panels.js';
 import { drawLogo, logos } from './logo.js';
+import { mascots } from './mascot.js';
 import { view, SHORTCUTS } from './view.js';
 import { layout, navigation, showsBanner } from './layout.js';
 import { handlers } from './keys.js';
@@ -277,8 +278,8 @@ export class Workspace {
 
   async saveAppearance() {
     await this.run('Saving appearance', async () => {
-      const { logo, motion, effect, theme } = this.state;
-      await saveAppearance({ logo, motion, effect, theme });
+      const { logo, mascot, motion, effect, theme } = this.state;
+      await saveAppearance({ logo, mascot, motion, effect, theme });
       this.state.notice = 'Appearance saved.';
     });
   }
@@ -304,8 +305,14 @@ export class Workspace {
     } else if (panel.index === 3) {
       this.state.theme = step(['dark', 'light', 'terminal', 'high-contrast'], this.state.theme);
       this.replay();
-    } else if (panel.index === 4) this.replay();
-    else if (panel.index === 5) await this.saveAppearance();
+    } else if (panel.index === 4) {
+      this.state.mascot = step(
+        mascots.map((m) => m.id),
+        this.state.mascot,
+      );
+      this.replay();
+    } else if (panel.index === 5) this.replay();
+    else if (panel.index === 6) await this.saveAppearance();
     this.changed();
   }
 
@@ -436,6 +443,7 @@ export class Workspace {
         x: 3,
         y: 3,
         variant: this.state.logo,
+        mascot: this.state.mascot,
         width: l.logoWidth,
         height: l.logoHeight,
         time: Math.max(0, elapsed) / 1000,

@@ -8,8 +8,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { Workspace } from '../src/tui/workspace.js';
+import { mascots } from '../src/tui/mascot.js';
+import { logos } from '../src/tui/logo.js';
+import { layout } from '../src/tui/layout.js';
 import { appearance, appearanceDefaults } from '../src/storage.js';
-import { theme, Screen, themes } from '../src/tui/screen.js';
+import { Screen, themes } from '../src/tui/screen.js';
 import { launchLinear } from '../src/tui/linear.js';
 import { wrapWithCaret } from '../src/tui/editor.js';
 import { sendForm } from '../src/api.js';
@@ -383,12 +386,15 @@ test('Home lists recent threads; Ctrl+K and the mouse reach any screen', async (
   assert.deepEqual(events, [{ button: 0, x: 11, y: 4, release: false }, 'ab']);
 });
 
-test('fresh appearance is calm, saved motion survives, and native colors use defaults', async () => {
+test('fresh appearance animates the desktop, saved motion survives, and native colors use defaults', async () => {
   const previous = process.env.ALIVE5_CONFIG_DIR;
   const dir = await mkdtemp(join(tmpdir(), 'alive5-new-appearance-'));
   process.env.ALIVE5_CONFIG_DIR = dir;
   try {
     assert.deepEqual(await appearance(), appearanceDefaults);
+    assert.equal((await appearance()).mascot, 'isometric-desktop');
+    assert.equal((await appearance()).motion, 'full');
+    assert.equal((await appearance()).theme, 'terminal');
     await writeFile(
       join(dir, 'appearance.json'),
       JSON.stringify({ motion: 'full', theme: 'light' }),
@@ -478,6 +484,8 @@ test('appearance controls select logos and stop motion', async () => {
     assert.equal(app.state.logo, 'type');
     await press(app, 'down');
     await press(app, 'right');
+    assert.equal(app.state.motion, 'subtle');
+    await press(app, 'right');
     assert.equal(app.state.motion, 'off');
     await app.handleKey(' ', {});
     assert.equal(app.state.motion, 'full');
@@ -490,7 +498,7 @@ test('appearance controls select logos and stop motion', async () => {
       app
         .frame(100, 36, 6000)
         .cells.flat()
-        .some((c) => c.fg === theme.orange),
+        .some((c) => c.fg === themes[app.state.theme].orange),
     );
   } finally {
     if (old === undefined) delete process.env.NO_COLOR;
@@ -592,7 +600,7 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
     );
     const migrated = await appearance();
     assert.equal(migrated.logo, 'frame');
-    assert.equal(migrated.theme, 'dark');
+    assert.equal(migrated.theme, 'terminal');
     const app = new Workspace({ account: { org_name: 'Example' }, settings: migrated });
     await app.handleKey('a');
     const previews = new Set();
@@ -604,7 +612,7 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
         screen.cells
           .slice(3, 10)
           .flat()
-          .some((cell) => cell.ch.trim() && cell.fg === theme.orange),
+          .some((cell) => cell.ch.trim() && cell.fg === screen.theme.orange),
         `Logo ${i} keeps the orange 5`,
       );
       previews.add(screen.plain().split('\n').slice(3, 10).join('\n'));
@@ -619,11 +627,17 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
     await app.handleKey('s');
     assert.equal(app.state.notice, 'Appearance saved.');
     assert.equal(app.state.panel.index, 0);
-    for (let i = 0; i < 5; i++) await press(app, 'down');
+    for (let i = 0; i < 6; i++) await press(app, 'down');
     await press(app, 'return');
     assert.equal(app.state.notice, 'Appearance saved.');
     const saved = await appearance();
-    assert.deepEqual(saved, { logo: 'frame', motion: 'off', effect: 'breathe', theme: 'dark' });
+    assert.deepEqual(saved, {
+      logo: 'frame',
+      mascot: 'isometric-desktop',
+      motion: 'off',
+      effect: 'breathe',
+      theme: 'terminal',
+    });
     assert.equal(JSON.parse(await readFile(join(dir, 'appearance.json'))).logo, 'frame');
     const restarted = new Workspace({ settings: saved });
     assert.ok(restarted.frame(80, 24).plain().includes('│   Alive5   │'));
@@ -651,7 +665,7 @@ test('continuous effects persist, stay inside the banner, and stop on task scree
   assert.deepEqual(c, app.frame(80, 24, app.replayAt + 12000).rows(24));
 });
 
-test('Cosmos preserves the label and content while comets and the moon move', () => {
+test('Cosmos preserves the label and content while the desktop and comets animate', () => {
   for (const width of [40, 80, 110]) {
     const app = new Workspace({
       account: { org_name: 'Example' },
@@ -660,7 +674,7 @@ test('Cosmos preserves the label and content while comets and the moon move', ()
     const snapshots = [2000, 6500, 13000].map((elapsed) => {
       const screen = app.frame(width, 24, app.replayAt + elapsed);
       assert.ok(screen.plain().includes('│   Alive5   │'));
-      assert.ok(screen.plain().includes(' /(___)/'));
+      assert.ok(screen.plain().includes('┌──────┐'));
       return screen.rows(24);
     });
     assert.deepEqual(snapshots[0].slice(8), snapshots[1].slice(8));
@@ -673,3 +687,167 @@ test('Cosmos preserves the label and content while comets and the moon move', ()
     );
   }
 });
+
+test('mascots switch in Appearance, save, and survive restart', async () => {
+  const app = new Workspace({ account: { org_name: 'Example' } });
+  await app.handleKey('a');
+  for (let i = 0; i < 4; i++) await press(app, 'down');
+  assert.ok(app.frame(80, 24).plain().includes('Isometric Desktop'));
+  await press(app, 'right');
+  assert.equal(app.state.mascot, 'pocket-macintosh');
+  assert.ok(app.frame(80, 24).plain().includes('Pocket Macintosh'));
+  assert.ok(app.frame(80, 24).plain().includes('╰┬───┬╯'));
+  await press(app, 'left');
+  assert.equal(app.state.mascot, 'isometric-desktop');
+  await press(app, 'return');
+  assert.equal(app.state.mascot, 'pocket-macintosh');
+  await app.handleKey('s');
+  const saved = await appearance();
+  assert.equal(saved.mascot, 'pocket-macintosh');
+  const restarted = new Workspace({ settings: saved });
+  assert.ok(restarted.frame(80, 24).plain().includes('╰┬───┬╯'));
+});
+
+test('both mascots fit every wordmark and theme and honor all motion modes', () => {
+  for (const mascot of mascots) {
+    for (const logo of logos) {
+      for (const theme of Object.keys(themes)) {
+        for (const width of [40, 64, 80, 110]) {
+          const app = new Workspace({
+            settings: { mascot: mascot.id, logo: logo.id, theme, motion: 'full' },
+          });
+          const { logoWidth, logoHeight } = layout(width, 24, 'home', logo.id);
+          const left = 3 + logoWidth - mascot.width - 1;
+          const top = 3 + Math.floor((logoHeight - mascot.height) / 2);
+          const screen = app.frame(width, 24, app.replayAt);
+          const sprite = () =>
+            screen.cells.slice(top, top + mascot.height).map((row) =>
+              row
+                .slice(left, left + mascot.width)
+                .map((c) => c.ch)
+                .join(''),
+            );
+          assert.deepEqual(sprite(), mascot.frames[0].rows);
+          assert.ok(screen.plain().includes('Compose a text'));
+        }
+      }
+    }
+    const app = new Workspace({
+      settings: { mascot: mascot.id, logo: 'frame', effect: 'signal', motion: 'full' },
+    });
+    if (app.motionLocked) continue;
+    const at = (elapsed) => app.frame(80, 24, app.replayAt + elapsed).rows(24);
+    // Compare only the mascot columns so a wordmark effect cannot mask a frozen mascot.
+    const spriteLeft = 3 + layout(80, 24, 'home', 'frame').logoWidth - mascot.width - 1;
+    const spriteAt = (elapsed) =>
+      app
+        .frame(80, 24, app.replayAt + elapsed)
+        .cells.slice(3, 8)
+        .map((row) =>
+          row.slice(spriteLeft, spriteLeft + mascot.width).map((cell) => ({ ...cell })),
+        );
+    assert.notDeepEqual(spriteAt(0), spriteAt(2500));
+    assert.deepEqual(at(0).slice(8), at(2500).slice(8));
+    app.state.motion = 'subtle';
+    app.changed();
+    assert.deepEqual(at(1000), at(6000));
+    app.state.motion = 'off';
+    app.changed();
+    assert.deepEqual(at(0), at(6000));
+    app.compose({ from: '+15555550100', to: '+15555550101' });
+    assert.deepEqual(at(0), at(6000));
+  }
+});
+
+test(
+  'real CLI switches and saves mascots, animates after restart, and restores the terminal',
+  { skip: ptySkip },
+  async () => {
+    await preparePty();
+    const dir = await mkdtemp(join(tmpdir(), 'alive5-mascot-pty-'));
+    const env = {
+      ...process.env,
+      ALIVE5_CONFIG_DIR: dir,
+      ALIVE5_API_KEY: '',
+      TERM: 'xterm-256color',
+      COLORTERM: 'truecolor',
+    };
+    delete env.NO_COLOR;
+    delete env.ALIVE5_NO_ANIMATION;
+    delete env.CI;
+    async function session(restarted) {
+      const term = new headless.Terminal({ cols: 80, rows: 24, allowProposedApi: true });
+      const p = spawn(process.execPath, ['bin/alive5.js'], {
+        cols: 80,
+        rows: 24,
+        cwd: process.cwd(),
+        env,
+      });
+      const exited = new Promise((resolve) => p.onExit(resolve));
+      p.onData((chunk) => term.write(chunk));
+      const text = () =>
+        Array.from(
+          { length: 24 },
+          (_, y) => term.buffer.active.getLine(y)?.translateToString(true) || '',
+        ).join('\n');
+      const until = async (pattern) => {
+        for (let i = 0; i < 100; i++) {
+          await sleep(30);
+          if (text().includes(pattern)) return;
+        }
+        throw new Error('CLI did not show ' + pattern + '\n' + text());
+      };
+      try {
+        // A scratch config opens the connection form; Escape reaches Home without an API request.
+        await until('Connect to Alive5');
+        p.write('\x1b');
+        await until('Compose a text');
+        if (restarted) {
+          assert.ok(text().includes('╰┬───┬╯'));
+          const sprites = new Set();
+          for (let i = 0; i < 18; i++) {
+            sprites.add(
+              text()
+                .split('\n')
+                .slice(3, 8)
+                .map((row) => row.slice(69, 76))
+                .join('\n'),
+            );
+            await sleep(180);
+          }
+          assert.ok(sprites.size > 1, 'the saved Pocket Macintosh animates continuously');
+        } else {
+          assert.ok(text().includes('┌──────┐'));
+          p.write('a');
+          await until('Isometric Desktop');
+          p.write('\x1b[B\x1b[B\x1b[B\x1b[B\x1b[C');
+          await until('Pocket Macintosh');
+          p.write('s');
+          await until('Appearance saved.');
+          assert.equal(
+            JSON.parse(await readFile(join(dir, 'appearance.json'))).mascot,
+            'pocket-macintosh',
+          );
+          p.resize(40, 24);
+          term.resize(40, 24);
+          await until('Pocket Mac');
+          assert.ok(text().includes('Save appearance'));
+          assert.ok(text().includes('╰┬───┬╯'));
+        }
+        p.write('q');
+        assert.equal((await exited).exitCode, 0);
+        await new Promise((resolve) => term.write('', resolve));
+        assert.equal(term.buffer.active.type, 'normal');
+      } finally {
+        p.kill();
+        term.dispose();
+      }
+    }
+    try {
+      await session(false);
+      await session(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  },
+);

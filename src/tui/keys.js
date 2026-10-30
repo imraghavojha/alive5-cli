@@ -177,11 +177,11 @@ export const handlers = {
     }
     if (str === 'r') return app.replay();
     if (str === ' ') return app.toggleMotion();
-    if (isDown(str, key)) panel.index = cycle(panel.index, 6, 1);
-    else if (isUp(str, key)) panel.index = cycle(panel.index, 6, -1);
-    else if (key.name === 'return' || (key.name === 'right' && panel.index < 4))
+    if (isDown(str, key)) panel.index = cycle(panel.index, 7, 1);
+    else if (isUp(str, key)) panel.index = cycle(panel.index, 7, -1);
+    else if (key.name === 'return' || (key.name === 'right' && panel.index < 5))
       return app.cycleAppearance(1);
-    else if (key.name === 'left' && panel.index < 4) return app.cycleAppearance(-1);
+    else if (key.name === 'left' && panel.index < 5) return app.cycleAppearance(-1);
   },
 };
 

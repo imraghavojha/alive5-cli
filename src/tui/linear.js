@@ -57,7 +57,8 @@ export function describeLinear(state) {
       `2. Motion: ${state.motion}`,
       `3. Effect: ${state.effect}`,
       `4. Theme: ${state.theme}`,
-      'Enter 1–4 to change a setting. :save stores the choices.',
+      `5. Mascot: ${state.mascot}`,
+      'Enter 1–5 to change a setting. :save stores the choices.',
     );
   } else if (panel.kind === 'help') lines.push(...panel.lines.map((item) => item.join('  ')));
   if (state.error) lines.push(`Error: ${state.error}`);
@@ -131,7 +132,7 @@ export async function launchLinear({
         } else if (panel.kind === 'list' && visibleRows(panel)[number]) {
           panel.index = number;
           app.openRecord(visibleRows(panel)[number].record);
-        } else if (panel.kind === 'appearance' && number >= 0 && number < 4) {
+        } else if (panel.kind === 'appearance' && number >= 0 && number < 5) {
           panel.index = number;
           await app.cycleAppearance(1);
         }

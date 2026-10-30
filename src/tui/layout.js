@@ -34,7 +34,7 @@ export const navigation = [
   {
     id: 'appearance',
     label: 'Appearance',
-    description: 'Choose from eight wordmarks and preview their motion.',
+    description: 'Choose your wordmark, computer mascot, motion, and theme.',
     code: 'alive5 --no-animation',
   },
 ];
@@ -47,7 +47,8 @@ export const BANNER_PANELS = ['home', 'appearance'];
 
 export const showsBanner = (kind) => BANNER_PANELS.includes(kind);
 
-const headerRows = (logo) => (logo ? Math.min(10, logoById(logo).lines.length + 5) : 3);
+const headerRows = (logo) =>
+  logo ? Math.min(10, Math.max(8, logoById(logo).lines.length + 5)) : 3;
 
 export function layout(width, height, kind = 'home', logo = null) {
   const left = 3;

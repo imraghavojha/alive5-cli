@@ -5,6 +5,7 @@ import { group, examples } from './shared.js';
 
 const DESCRIPTIONS = {
   logo: 'set logo; frame is Label, variation 8',
+  mascot: 'set the animated computer mascot',
   motion: 'set motion; full is continuous, subtle is entrance only',
   effect: 'set animation effect',
   theme: 'set dark, light, terminal-native, or high-contrast colors',
@@ -19,12 +20,13 @@ export function register(program, { write }) {
   examples(style, [
     'alive5 appearance get',
     'alive5 appearance set --logo frame --motion subtle',
+    'alive5 appearance set --mascot pocket-macintosh --motion full',
     'alive5 appearance set --motion off --dry-run',
   ]);
 
   style
     .command('get')
-    .description('Read saved logo, motion, effect, and theme settings')
+    .description('Read saved wordmark, mascot, motion, effect, and theme settings')
     .action(async () => write(await appearance()));
 
   const set = style.command('set').description('Save local appearance settings without prompts');
@@ -39,7 +41,7 @@ export function register(program, { write }) {
     );
     if (!Object.keys(changes).length)
       throw usage(
-        'Specify --logo, --motion, --effect, or --theme. Run alive5 appearance set --help.',
+        'Specify --logo, --mascot, --motion, --effect, or --theme. Run alive5 appearance set --help.',
       );
     const settings = { ...(await appearance()), ...changes };
     if (!options.dryRun) await saveAppearance(settings);

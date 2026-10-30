@@ -61,6 +61,7 @@ export async function key() {
 // commands that read and write it never require authentication.
 export const appearanceChoices = {
   logo: ['type', 'slash', 'outline', 'pixel', 'stipple', 'wire', 'lean', 'frame'],
+  mascot: ['isometric-desktop', 'pocket-macintosh'],
   motion: ['full', 'subtle', 'off'],
   effect: ['signal', 'breathe', 'orbit', 'cosmos'],
   theme: ['dark', 'light', 'terminal', 'high-contrast'],
@@ -68,9 +69,10 @@ export const appearanceChoices = {
 
 export const appearanceDefaults = {
   logo: 'frame',
-  motion: 'subtle',
+  mascot: 'isometric-desktop',
+  motion: 'full',
   effect: 'cosmos',
-  theme: 'dark',
+  theme: 'terminal',
 };
 
 const APPEARANCE = 'appearance.json';

@@ -55,7 +55,7 @@ Run `alive5` with no arguments.
 | `?`               | Every shortcut                                              |
 | `q`               | Quit. `Ctrl+C` always quits.                                |
 
-**Appearance.** Press `a` to choose one of eight wordmarks, a banner effect, and a Dark, Light, Terminal, or High contrast theme. Motion runs at about 6 fps and stops on task screens. `NO_COLOR`, `ALIVE5_NO_ANIMATION=1`, or `--no-animation` turn it off. [Compare the logos](docs/media/logos-v3.png) · [See the motion](docs/media/logo-motion.gif)
+**Appearance.** Press `a` to choose one of eight wordmarks, a computer mascot, a banner effect, and a Dark, Light, Terminal, or High contrast theme. Terminal colors and the compact Isometric Desktop are the defaults for new installs; select the Mascot row and use ←/→ to switch to Pocket Macintosh. Press `s` to save. Motion defaults to Full (continuous animation); Subtle plays an entrance and then holds still, and Off pauses it. Saved theme and motion preferences are preserved. Motion runs at about 6 fps and stops on task screens. `NO_COLOR`, `ALIVE5_NO_ANIMATION=1`, or `--no-animation` turn it off. You can also run `alive5 appearance set --mascot pocket-macintosh --motion full` or `alive5 appearance set --mascot isometric-desktop`. [Compare the wordmarks](docs/media/logos-v3.png)
 
 **Line mode.** `alive5 --linear` runs the same workspace as plain lines of text, without full-screen drawing. It is meant for screen readers, logs, and slow connections, but it has not yet been tested with a screen reader.
 

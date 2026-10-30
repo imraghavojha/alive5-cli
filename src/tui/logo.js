@@ -1,6 +1,7 @@
 // FIGlet output via pyfiglet: Small, Small Slant and Bigfig by Glenn Chappell;
 // Small/Small Slant updates by Paul Burton; Rectangles by David Villegas.
 import { mix } from './screen.js';
+import { mascotById, drawMascot } from './mascot.js';
 
 export const WORDMARK = 'Alive5';
 export const LOGO_HEIGHT = 7;
@@ -116,13 +117,15 @@ export function drawLogo(
     motion = 'full',
     effect = 'cosmos',
     variant = 'frame',
+    mascot = 'isometric-desktop',
   },
 ) {
   const theme = screen.theme;
   const logo = logoById(variant);
+  const character = mascotById(mascot);
   // Every variant fits the smallest supported terminal. A narrower command
   // banner keeps readable text instead of clipping letterforms.
-  const fits = Math.max(...logo.lines.map((line) => line.length)) <= width - 2;
+  const fits = Math.max(...logo.lines.map((line) => line.length)) <= width - character.width - 3;
   const lines = fits ? logo.lines : [WORDMARK];
   const fiveFrom = fits && lines.length > 1 ? logo.fiveFrom : null;
   const artWidth = Math.max(...lines.map((line) => line.length));
@@ -133,9 +136,9 @@ export function drawLogo(
 
   if ((animated && effect === 'orbit') || effect === 'cosmos') drawStars(scene, effect);
   if (effect === 'cosmos') {
-    drawPlanet(scene);
     if (animated) drawComets(scene);
   }
+  drawMascot(scene, character);
 
   lines.forEach((line, row) => {
     [...line].forEach((char, col) => {
@@ -170,36 +173,6 @@ const painter =
     if (px <= artWidth && py >= top - y && py < top - y + lines.length) return;
     screen.put(x + px, y + py, glyph, color);
   };
-
-const PLANET = ['   .-.  /', ' /(___)/ ', "/  '-'   "];
-
-function drawPlanet(scene) {
-  const theme = scene.screen.theme;
-  const { width, height, artWidth, t } = scene;
-  const planetX = Math.max(artWidth + 3, width - 11);
-  if (planetX + 9 > width) return;
-  const paint = painter(scene);
-  const planetY = Math.floor((height - 3) / 2);
-  // A tiny moon orbits the planet, which stays recognizable and stationary.
-  if (width >= 50)
-    paint(
-      planetX + 4 + Math.round(Math.cos(t * 0.45) * 5),
-      planetY + 1 + Math.round(Math.sin(t * 0.45)),
-      'o',
-      mix(theme.bg, theme.muted, 0.8),
-    );
-  PLANET.forEach((line, row) =>
-    [...line].forEach((glyph, col) => {
-      if (glyph !== ' ')
-        paint(
-          planetX + col,
-          planetY + row,
-          glyph,
-          glyph === '/' ? mix(theme.bg, theme.muted, 0.65) : theme.muted,
-        );
-    }),
-  );
-}
 
 function drawComets(scene) {
   const theme = scene.screen.theme;

@@ -266,6 +266,10 @@ test('agents discover, preview, save, and read appearance without credentials or
         .find((o) => o.flag === '--effect <value>')
         .choices.includes('cosmos'),
     );
+    assert.deepEqual(
+      schema.data.commands.options.find((o) => o.flag === '--mascot <value>').choices,
+      ['isometric-desktop', 'pocket-macintosh'],
+    );
     const saved = command(
       'appearance',
       'set',
@@ -280,17 +284,24 @@ test('agents discover, preview, save, and read appearance without credentials or
     assert.equal(saved.stdout.includes('\x1b'), false);
     assert.deepEqual(JSON.parse(saved.stdout).data, {
       logo: 'frame',
+      mascot: 'isometric-desktop',
       effect: 'cosmos',
       motion: 'full',
-      theme: 'dark',
+      theme: 'terminal',
       saved: true,
     });
     const preview = command('appearance', 'set', '--motion', 'off', '--dry-run');
     assert.equal(JSON.parse(preview.stdout).data.saved, false);
     assert.equal(JSON.parse(command('appearance', 'get').stdout).data.motion, 'full');
-    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.theme, 'dark');
+    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.theme, 'terminal');
+    const mascotPreview = command('appearance', 'set', '--mascot', 'pocket-macintosh', '--dry-run');
+    assert.equal(JSON.parse(mascotPreview.stdout).data.mascot, 'pocket-macintosh');
+    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.mascot, 'isometric-desktop');
+    assert.equal(command('appearance', 'set', '--mascot', 'pocket-macintosh').status, 0);
+    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.mascot, 'pocket-macintosh');
     const before = await readFile(join(dir, 'appearance.json'), 'utf8');
     assert.equal(command('appearance', 'set', '--effect', 'invalid').status, 2);
+    assert.equal(command('appearance', 'set', '--mascot', 'invalid').status, 2);
     assert.equal(command('appearance', 'set').status, 2);
     assert.equal(await readFile(join(dir, 'appearance.json'), 'utf8'), before);
     if (posixModes) assert.equal((await stat(join(dir, 'appearance.json'))).mode & 0o777, 0o600);

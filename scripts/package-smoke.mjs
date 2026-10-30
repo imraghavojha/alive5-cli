@@ -32,8 +32,9 @@ try {
     }),
   );
   assert.equal(data.ok, true);
-  assert.equal(data.data.motion, 'subtle');
-  assert.equal(data.data.theme, 'dark');
+  assert.equal(data.data.motion, 'full');
+  assert.equal(data.data.mascot, 'isometric-desktop');
+  assert.equal(data.data.theme, 'terminal');
   console.log('Packaged CLI installed and launched successfully.');
 } finally {
   await rm(dir, { recursive: true, force: true });

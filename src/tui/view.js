@@ -74,6 +74,7 @@ export function view(state, width, height, time = 0) {
       motion: state.motion,
       effect: state.effect,
       variant: state.logo,
+      mascot: state.mascot,
     });
   } else {
     // Task screens keep a single-line header so the panel gets the height.

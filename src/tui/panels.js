@@ -2,6 +2,7 @@ import { wrap, clipWithEllipsis, stringWidth, fuzzy, graphemes } from './text.js
 import { wrapWithCaret, length } from './editor.js';
 import { MESSAGE_LIMIT } from '../validate.js';
 import { logos, logoById } from './logo.js';
+import { mascotById } from './mascot.js';
 import { navigation } from './layout.js';
 import { detailLines, ago } from './records.js';
 import { mix } from './screen.js';
@@ -279,12 +280,14 @@ export const panels = {
 
   appearance(s, l, panel, state) {
     const selected = logoById(state.logo);
+    const mascot = mascotById(state.mascot);
     s.text(l.x, l.top, l.w, 'Appearance', s.theme.ink, s.theme.bg, true);
     const rows = [
       ['Wordmark', `${logos.indexOf(selected) + 1}/${logos.length}  ${selected.name}`],
       ['Motion', MOTION[state.motion]],
       ['Effect', EFFECTS[state.effect]],
-      ['Theme', THEMES[state.theme]],
+      ['Theme', l.w < 45 && state.theme === 'terminal' ? 'Terminal' : THEMES[state.theme]],
+      ['Mascot', l.w < 45 ? mascot.shortName : mascot.name],
       ['Replay', ''],
       ['Save appearance', ''],
     ];
@@ -302,11 +305,18 @@ export const panels = {
         active ? s.theme.ink : s.theme.muted,
         bg,
       );
-      const shown = i < 4 ? `‹ ${value} ›` : value;
+      const shown = i < 5 ? `‹ ${value} ›` : value;
       s.text(l.x + split, y, l.w - split, shown, active ? s.theme.hot : s.theme.muted, bg, active);
       if (active && s.themeName === 'terminal') s.reverse(l.x, y, l.w);
     });
-    if (l.h >= 10) muted(s, l.x, l.top + 9, l.w, clipWithEllipsis(selected.description, l.w));
+    if (l.h >= 11)
+      muted(
+        s,
+        l.x,
+        l.top + 10,
+        l.w,
+        clipWithEllipsis(panel.index === 4 ? mascot.description : selected.description, l.w),
+      );
   },
 
   help(s, l, panel) {
