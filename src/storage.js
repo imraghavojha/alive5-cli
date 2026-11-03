@@ -48,6 +48,10 @@ export async function config() {
 
 export const saveConfig = (value) => writeJson(CREDENTIALS, value);
 
+export const inboxConfig = () => readJson('inbox.json', {});
+
+export const saveInboxConfig = (value) => writeJson('inbox.json', value);
+
 export const logout = () => rm(path(CREDENTIALS), { force: true });
 
 export async function key() {

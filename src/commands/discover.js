@@ -31,7 +31,7 @@ export function describe(cmd) {
 }
 
 const NOTES = [
-  'No automatic retries. A failed send can have an unknown delivery result.',
+  'No automatic HTTP network retries. A failed send can have an unknown delivery result.',
   'One page per list call. Follow meta.nextPage explicitly.',
   'Use ISO dates (YYYY-MM-DD) and international phone numbers (+15555550100).',
   '--raw returns the API body with secret-looking fields removed.',
@@ -39,6 +39,12 @@ const NOTES = [
   'sms send requires --yes in noninteractive mode.',
   '--dry-run on sms send validates locally only; it makes no API request.',
   'Errors use the same envelope with ok:false and a nonzero exit code.',
+  'inbox listen and wait use one push WebSocket, reconnect automatically, and never poll the Alive5 API.',
+  'Inbox streams write one success envelope per text (NDJSON); statuses and error envelopes go to stderr only.',
+  'Inbox events contain type, id, line, channelId, from, text, threadId, receivedAt. Acks follow stdout writes.',
+  'inbox wait emits and acks one matching text, exits 0, or exits 124 on timeout (seconds). Other texts remain unacked.',
+  'Relay replay is at least once, retained for 24 hours; deduplicate by data.id. Media-only texts are not delivered.',
+  'Inbox streams do not support --raw or --fields. --output text does not override NDJSON when piped.',
 ];
 
 const AUTH = {
@@ -69,10 +75,26 @@ export function register(program, { write }) {
                 '{ok:false,data:null,error:{code,message,retryable,status?,field?,details?},meta:{schemaVersion:1}}',
               defaults: 'JSON when piped or given --json; text on a terminal',
             },
-            authentication: AUTH,
+            authentication: {
+              ...AUTH,
+              inbox: {
+                environment: 'ALIVE5_RELAY_URL',
+                storedAt: 'inbox.json in the config directory, mode 0600',
+                config: '{relayUrl,clientId,token,wsUrl}; no default relay URL',
+                register: 'alive5 inbox channels add <line>',
+                transport:
+                  'Authorization: Bearer <token>; Alive5 key only on registration and line add/remove',
+              },
+            },
             sideEffects: {
-              writes: ['sms send'],
-              localWrites: ['auth login', 'auth logout', 'appearance set'],
+              writes: [
+                'sms send',
+                'inbox channels add',
+                'inbox channels remove',
+                'inbox listen (acks)',
+                'inbox wait (one ack)',
+              ],
+              localWrites: ['auth login', 'auth logout', 'appearance set', 'inbox channels add'],
               endpoint: SEND_PATH,
             },
             exitCodes: EXIT_CODES,

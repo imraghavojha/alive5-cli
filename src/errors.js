@@ -15,6 +15,7 @@ export const EXIT = {
   auth: 3,
   api: 4,
   rateLimited: 5,
+  timeout: 124,
   cancelled: 130,
 };
 
@@ -25,6 +26,7 @@ export const EXIT_CODES = {
   3: 'authentication',
   4: 'API or network error',
   5: 'rate limited',
+  124: 'inbox wait timed out',
   130: 'cancelled',
 };
 

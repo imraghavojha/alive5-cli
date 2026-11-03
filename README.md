@@ -78,16 +78,37 @@ alive5 completion zsh > "${fpath[1]}/_alive5"
 
 `--dry-run` validates locally and prints the exact form without calling the API. Replace it with `--yes` to send. To include a full day, set `--until` to the day after.
 
+## Receive texts
+
+Point the CLI at the deployed relay, then subscribe your Alive5 number:
+
+```sh
+export ALIVE5_RELAY_URL='https://<deployed-relay-host>'
+alive5 inbox channels add +15555550100
+alive5 inbox wait --timeout 60 --json
+alive5 inbox listen --line +15555550100 --notify
+alive5 inbox channels list
+alive5 inbox channels remove +15555550100
+```
+
+There is no default relay URL yet. You can also set `relayUrl` in `inbox.json` in the config directory. The environment variable overrides it. The first `channels add` uses your saved Alive5 key (or `ALIVE5_API_KEY`) to register and saves `{relayUrl,clientId,token,wsUrl}` there with mode `0600`. The directory follows `ALIVE5_CONFIG_DIR`, then `$XDG_CONFIG_HOME/alive5`, then `~/.config/alive5`.
+
+For agents, use **wait → read → reply with `sms send` → wait**. `wait` prints exactly one text and exits 0, or exits 124 without stdout on timeout. Its `--timeout` is in seconds; omit it to wait indefinitely. `listen` runs until stopped. Both keep one idle WebSocket, reconnect with backoff, and never poll Alive5. `--notify` adds macOS notifications; other systems warn once and continue.
+
+Piped output (or `--json`) is one JSON envelope per text, with `data` containing `type`, `id`, `line`, `channelId`, `from`, `text`, `threadId`, and `receivedAt`. Status and errors go only to stderr. On a terminal, each text is one readable line. Streams do not support `--fields` or `--raw`.
+
+Texts are acknowledged only after stdout accepts the write. Unacked texts stay on the relay for 24 hours, including those skipped by `--line`. Reconnects can replay a text, so deduplicate by `data.id` if needed. This acknowledges output, not your agent’s later processing. Media-only texts are not delivered by Alive5 webhooks. Ctrl+C or SIGTERM closes the socket and exits 130.
+
 ## For agents and scripts
 
-Piped output is JSON: one envelope per command, errors included.
+Piped output is JSON: one envelope per command, errors included. Inbox streams use the per-text format above, with errors on stderr.
 
 ```json
 { "ok": true, "data": [], "error": null, "meta": { "schemaVersion": 1 } }
 ```
 
 - `alive5 schema` describes every command, flag, exit code, and side effect.
-- Exit codes: 0 ok · 1 local · 2 usage · 3 auth · 4 API · 5 rate limit · 130 cancelled.
+- Exit codes: 0 ok · 1 local · 2 usage · 3 auth · 4 API · 5 rate limit · 124 wait timeout · 130 cancelled.
 - A mistyped command returns `UNKNOWN_COMMAND` with `error.details.suggestions`. A missing flag returns `MISSING_OPTION` with `error.field`.
 - Nothing prompts when output is piped. Sending needs `--yes` and never retries.
 

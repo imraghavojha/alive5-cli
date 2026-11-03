@@ -9,17 +9,18 @@ import * as directory from './commands/directory.js';
 import * as messages from './commands/messages.js';
 import * as appearance from './commands/appearance.js';
 import * as discover from './commands/discover.js';
+import * as inbox from './commands/inbox.js';
 
-const REGISTRARS = [auth, directory, messages, appearance, discover];
+const REGISTRARS = [auth, directory, messages, appearance, inbox, discover];
 
-const WRITE_COMMANDS = ['send', 'login', 'logout', 'set'];
+const WRITE_COMMANDS = ['send', 'login', 'logout', 'set', 'add', 'remove'];
 
 const DESCRIPTION = `Conversations, from your terminal.
 
 Run alive5 with no arguments for the interactive workspace.
 Agents: start with alive5 schema. Piped output defaults to JSON.
 Authentication: alive5 auth login, or set ALIVE5_API_KEY.
-Exit codes: 0 success, 2 usage, 3 authentication, 4 API, 5 rate limit, 130 cancelled.`;
+Exit codes: 0 success, 2 usage, 3 authentication, 4 API, 5 rate limit, 124 wait timeout, 130 cancelled.`;
 
 function build() {
   const program = new Command();
@@ -85,6 +86,30 @@ function build() {
   return { program, json };
 }
 
+function isInboxStream(program, args) {
+  let command = program;
+  for (let i = 0; i < args.length; i++) {
+    const arg = args[i];
+    if (arg === '--') return false;
+    if (arg.startsWith('-')) {
+      const flag = arg.split('=')[0];
+      let owner = command;
+      let option;
+      while (owner && !option) {
+        option = owner.options.find((o) => o.long === flag || o.short === flag);
+        owner = owner.parent;
+      }
+      if (option?.required && !arg.includes('=')) i++;
+      continue;
+    }
+    const next = command.commands.find((c) => c.name() === arg);
+    if (!next) return false;
+    if (command.name() === 'inbox' && ['listen', 'wait'].includes(next.name())) return true;
+    command = next;
+  }
+  return false;
+}
+
 function distance(a, b) {
   let row = Array.from({ length: b.length + 1 }, (_, i) => i);
   for (let i = 1; i <= a.length; i++) {
@@ -144,13 +169,17 @@ function toCliError(e, program) {
 
 export async function main(argv = process.argv) {
   const { program, json } = build();
+  const streaming = isInboxStream(program, argv.slice(2));
   try {
     await program.parseAsync(argv);
   } catch (thrown) {
     // --help and --version exit successfully through the same throw path.
     if (thrown instanceof CommanderError && thrown.exitCode === 0) return;
     const e = toCliError(thrown, program);
-    if (json()) console.log(JSON.stringify(failure(e)));
+    if (streaming) {
+      if (json() || !process.stdout.isTTY) console.error(JSON.stringify(failure(e)));
+      else if (e.code !== 'CANCELLED') console.error(`Error: ${safe(e.message)}`);
+    } else if (json()) console.log(JSON.stringify(failure(e)));
     else if (e.code !== 'CANCELLED') console.error(`\n  Error: ${safe(e.message)}\n`);
     process.exitCode = e.exitCode;
   }
