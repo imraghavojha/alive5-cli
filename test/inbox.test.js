@@ -6,6 +6,7 @@ import { spawn } from 'node:child_process';
 import { mkdtemp, readFile, writeFile, stat, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { Writable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import { WebSocketServer } from 'ws';
@@ -97,6 +98,7 @@ async function fixture(t, { registered = true } = {}) {
         state.pending = state.pending.filter((e) => e.id !== frame.id);
       } else if (frame.action === 'ping') {
         state.pings++;
+        if (state.onPing?.(ws) === false) return;
         ws.send(JSON.stringify({ type: 'pong' }));
       }
     });
@@ -115,27 +117,46 @@ async function fixture(t, { registered = true } = {}) {
   };
   await writeFile(join(dir, 'credentials.json'), JSON.stringify({ apiKey: 'alive5-secret' }));
   if (registered) await writeFile(join(dir, 'inbox.json'), JSON.stringify(client));
+  const clock = join(dir, 'heartbeat-clock.mjs');
+  await writeFile(
+    clock,
+    `
+    const interval = globalThis.setInterval;
+    const timeout = globalThis.setTimeout;
+    globalThis.setInterval = (fn, ms, ...args) => interval(fn, ms === 300000 ? 50 : ms, ...args);
+    globalThis.setTimeout = (fn, ms, ...args) => timeout(fn, ms === 60000 ? 150 : ms, ...args);
+  `,
+  );
   const children = [];
-  function run(args, env = {}) {
-    const child = spawn(process.execPath, ['bin/alive5.js', ...args], {
-      cwd: new URL('..', import.meta.url),
-      env: {
-        ...process.env,
-        ALIVE5_CONFIG_DIR: dir,
-        ALIVE5_RELAY_URL: relayUrl,
-        ALIVE5_API_KEY: '',
-        ...env,
+  function run(args, env = {}, { paused = false, closed = false, heartbeat = false } = {}) {
+    const child = spawn(
+      process.execPath,
+      [...(heartbeat ? ['--import', pathToFileURL(clock).href] : []), 'bin/alive5.js', ...args],
+      {
+        cwd: new URL('..', import.meta.url),
+        env: {
+          ...process.env,
+          ALIVE5_CONFIG_DIR: dir,
+          ALIVE5_RELAY_URL: relayUrl,
+          ALIVE5_API_KEY: '',
+          ...env,
+        },
+        stdio: ['ignore', 'pipe', 'pipe'],
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    );
     children.push(child);
     const result = { child, stdout: '', stderr: '' };
     child.stdout.on('data', (data) => {
       result.stdout += data;
     });
+    if (paused) child.stdout.pause();
+    if (closed) child.stdout.destroy();
     child.stderr.on('data', (data) => {
       result.stderr += data;
     });
+    result.exited = new Promise((resolve) =>
+      child.once('exit', (code, signal) => resolve({ code, signal })),
+    );
     result.done = new Promise((resolve, reject) => {
       const timer = setTimeout(() => {
         child.kill('SIGKILL');
@@ -152,8 +173,10 @@ async function fixture(t, { registered = true } = {}) {
     return result;
   }
   t.after(async () => {
-    for (const child of children)
+    for (const child of children) {
+      child.stdout.resume();
       if (child.exitCode === null && child.signalCode === null) child.kill('SIGKILL');
+    }
     for (const ws of wss.clients) ws.terminate();
     await new Promise((resolve) => wss.close(resolve));
     server.closeAllConnections();
@@ -363,6 +386,107 @@ test('acks follow the stdout write callback and a failed write stays buffered', 
   );
   assert.deepEqual(f.state.acks, ['evt_slow']);
   assert.equal(f.state.pending[0].id, 'evt_failed');
+});
+
+test('closed stdout makes a real inbox wait fail without acking, while other commands still exit 0', async (t) => {
+  const f = await fixture(t);
+  f.state.pending = [event('evt_closed')];
+  const r = await f.run(['inbox', 'wait'], {}, { closed: true }).done;
+  assert.equal(r.code, 1);
+  assert.equal(r.stdout, '');
+  assert.equal(JSON.parse(r.stderr).error.code, 'OUTPUT_ERROR');
+  assert.deepEqual(f.state.acks, []);
+  assert.equal(f.state.pending[0].id, 'evt_closed');
+  const other = await f.run(['schema'], {}, { closed: true }).done;
+  assert.equal(other.code, 0);
+  assert.equal(other.stderr, '');
+});
+
+async function blockedOutput(f) {
+  await until(() => f.state.acks.length > 0);
+  let count;
+  do {
+    count = f.state.acks.length;
+    await delay(100);
+  } while (count !== f.state.acks.length);
+  assert.ok(f.state.pending.length > 0, 'the pipe must fill before all texts are acknowledged');
+  return f.state.pending[0].id;
+}
+
+test(
+  'SIGINT exits with stdout still blocked and leaves the unfinished text unacked',
+  { skip: process.platform === 'win32' },
+  async (t) => {
+    const f = await fixture(t);
+    f.state.pending = Array.from({ length: 2048 }, (_, i) => ({
+      ...event(`evt_blocked_${i}`),
+      text: 'x'.repeat(1600),
+    }));
+    const r = f.run(['inbox', 'listen'], {}, { paused: true });
+    const unfinished = await blockedOutput(f);
+    assert.equal(r.child.stdout.isPaused(), true);
+    r.child.kill('SIGINT');
+    await until(() => r.child.exitCode !== null, 2000);
+    assert.deepEqual(await r.exited, { code: 130, signal: null });
+    assert.equal(JSON.parse(r.stderr).error.code, 'CANCELLED');
+    assert.ok(f.state.pending.some((e) => e.id === unfinished));
+    assert.ok(!f.state.acks.includes(unfinished));
+    assert.equal(f.state.sockets[0].readyState, 3);
+    r.child.stdout.resume();
+    await r.done;
+  },
+);
+
+for (const command of ['wait', 'listen']) {
+  test(`real inbox ${command} reconnects when TCP stays open but pongs stop`, async (t) => {
+    const f = await fixture(t);
+    f.state.onConnect = (ws) => {
+      if (f.state.connections === 2) ws.send(JSON.stringify(event('evt_recovered')));
+    };
+    if (command === 'listen') f.state.onAck = (_, ws) => ws.send('{stop');
+    const r = f.run(['inbox', command], {}, { heartbeat: true });
+    await until(() => f.state.pings >= 8);
+    assert.equal(f.state.connections, 1);
+    f.state.onPing = () => false;
+    await until(() => f.state.connections === 2, 3000);
+    await r.done;
+    assert.equal(r.code, command === 'wait' ? 0 : 4);
+    assert.equal(JSON.parse(r.stdout).data.id, 'evt_recovered');
+    assert.deepEqual(f.state.acks, ['evt_recovered']);
+    assert.match(r.stderr, /reconnecting/);
+    assert.equal(f.state.sockets[0].readyState, 3);
+  });
+}
+
+test('pong deadline is suspended for real stdout backpressure and resumes after draining', async (t) => {
+  const f = await fixture(t);
+  let flooded = false;
+  f.state.onPing = (ws) => {
+    if (!flooded) {
+      flooded = true;
+      f.state.pending = Array.from({ length: 2048 }, (_, i) => ({
+        ...event(`evt_pressure_${i}`),
+        text: 'x'.repeat(1600),
+      }));
+      for (const e of f.state.pending) ws.send(JSON.stringify(e));
+    }
+    return false;
+  };
+  f.state.onConnect = (ws) => {
+    if (f.state.connections === 2) ws.send('{stop');
+  };
+  const r = f.run(['inbox', 'listen'], {}, { paused: true, heartbeat: true });
+  await blockedOutput(f);
+  await delay(500);
+  assert.equal(f.state.connections, 1);
+  assert.equal(f.state.sockets[0].readyState, 1);
+  r.child.stdout.resume();
+  await until(() => f.state.acks.length === 2048);
+  await until(() => f.state.connections === 2, 3000);
+  await r.done;
+  assert.equal(r.code, 4);
+  assert.equal(r.stdout.trim().split('\n').length, 2048);
+  assert.deepEqual(f.state.pending, []);
 });
 
 test('keepalive uses contract ping frames and cancellation cleans up', async (t) => {

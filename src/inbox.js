@@ -58,6 +58,7 @@ async function connection(client, { once, line, signal, write, notify, selected,
     followRedirects: false,
   });
   let ping;
+  let pongDeadline;
   let ready = false;
   let claimed = false;
   let ended = false;
@@ -77,8 +78,10 @@ async function connection(client, { once, line, signal, write, notify, selected,
       if (signal.aborted) return abort();
       socket.on('open', () => {
         ping = setInterval(() => {
-          if (socket.readyState === WebSocket.OPEN)
+          if (!pending && !pongDeadline && socket.readyState === WebSocket.OPEN) {
+            pongDeadline = setTimeout(() => socket.terminate(), 60000);
             send(socket, { action: 'ping' }).catch(() => socket.terminate());
+          }
         }, pingMs);
       });
       socket.on('unexpected-response', (request, response) => {
@@ -89,6 +92,7 @@ async function connection(client, { once, line, signal, write, notify, selected,
       });
       socket.on('close', (code) => {
         clearInterval(ping);
+        clearTimeout(pongDeadline);
         queue.then(() => {
           const auth = [1008, 4401, 4403].includes(code) || (!ready && code === 1000);
           finish(auth ? notRegistered() : null);
@@ -107,10 +111,17 @@ async function connection(client, { once, line, signal, write, notify, selected,
           ready = true;
           return;
         }
+        if (event.type === 'pong') {
+          clearTimeout(pongDeadline);
+          pongDeadline = undefined;
+          return;
+        }
         if (event.type !== 'message' || (line && line !== event.line)) return;
         claimed = true;
         if (once) selected();
         pending++;
+        clearTimeout(pongDeadline);
+        pongDeadline = undefined;
         socket.pause();
         queue = queue
           .then(async () => {
@@ -148,6 +159,7 @@ async function connection(client, { once, line, signal, write, notify, selected,
   } finally {
     ended = true;
     clearInterval(ping);
+    clearTimeout(pongDeadline);
     signal.removeEventListener('abort', abort);
     socket.resume();
     await close(socket);

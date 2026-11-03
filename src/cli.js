@@ -170,6 +170,13 @@ function toCliError(e, program) {
 export async function main(argv = process.argv) {
   const { program, json } = build();
   const streaming = isInboxStream(program, argv.slice(2));
+  process.stdout.on('error', (e) => {
+    if (e.code === 'EPIPE') {
+      if (!streaming) process.exit(0);
+      return;
+    }
+    throw e;
+  });
   try {
     await program.parseAsync(argv);
   } catch (thrown) {
@@ -182,5 +189,7 @@ export async function main(argv = process.argv) {
     } else if (json()) console.log(JSON.stringify(failure(e)));
     else if (e.code !== 'CANCELLED') console.error(`\n  Error: ${safe(e.message)}\n`);
     process.exitCode = e.exitCode;
+    if (streaming && e.code === 'CANCELLED')
+      process.stderr.write('', () => process.exit(e.exitCode));
   }
 }
