@@ -1,7 +1,7 @@
 import { request, items, pagination, query } from './http.js';
 import * as shape from './normalize.js';
 import { dateRange, phone, integer, messageText, timezoneOffset } from './validate.js';
-import { usage } from './errors.js';
+import { usage, CliError, EXIT } from './errors.js';
 
 const V1 = 'https://api.alive5.com/public/1.0';
 const V2 = 'https://api-v2.alive5.com/public';
@@ -128,4 +128,32 @@ export async function send(options) {
         text: d?.message_content || form.message,
         deliveryConfirmed: false,
       };
+}
+
+// Dates are ignored by v1.2: scan newest-first pages and filter locally.
+export async function inboxHistory(line, channelId, since, options = {}) {
+  const events = [];
+  let previous;
+  const incomplete = () =>
+    new CliError(
+      'BACKFILL_INCOMPLETE',
+      'Inbox history scan is incomplete; checkpoint was not advanced. Retry to scan again.',
+      EXIT.api,
+    );
+  for (let page = 1; page <= 100; page++) {
+    options.signal?.throwIfAborted();
+    const data = await request(query(`${V2}/1.2/conversations/sms`, { limit: 50, page }), options);
+    const rows = items(data);
+    const signature = JSON.stringify(rows);
+    if (rows.length && signature === previous) throw incomplete();
+    previous = signature;
+    if (rows.some((r) => !shape.smsRow(r).at)) throw incomplete();
+    for (const row of rows) {
+      const event = shape.inboxSms(row, line, channelId);
+      if (event && Date.parse(event.receivedAt) >= since) events.push(event);
+    }
+    if (rows.length < 50 || rows.every((r) => Date.parse(shape.smsRow(r).at) < since))
+      return events;
+  }
+  throw incomplete();
 }

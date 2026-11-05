@@ -43,7 +43,7 @@ export function unwrap(body) {
 
 export async function request(
   url,
-  { apiKey, method = 'GET', form, timeout = 30000, fetchFn = fetch } = {},
+  { apiKey, method = 'GET', form, timeout = 30000, fetchFn = fetch, signal } = {},
 ) {
   if (!ALLOWED_ORIGINS.includes(new URL(url).origin))
     throw new CliError(
@@ -64,7 +64,9 @@ export async function request(
       body,
       headers: { 'X-A5-APIKEY': secret, Accept: 'application/json', 'User-Agent': USER_AGENT },
       redirect: 'error',
-      signal: AbortSignal.timeout(timeout),
+      signal: signal
+        ? AbortSignal.any([signal, AbortSignal.timeout(timeout)])
+        : AbortSignal.timeout(timeout),
     });
     const text = await response.text();
     let parsed;

@@ -80,3 +80,37 @@ export const displayName = (r = {}) =>
   r.email ||
   r.id ||
   'Unknown';
+
+// History uses phone-shaped created_by for inbound, and an agent name for outbound.
+export function smsPhone(value) {
+  if (typeof value !== 'string') return null;
+  const digits = value.replace(/[\s().-]/g, '');
+  const number = digits.startsWith('+') ? digits : `+${digits}`;
+  return /^\+[1-9]\d{7,14}$/.test(number) ? number : null;
+}
+
+export function inboxSms(row, line, channelId) {
+  const from = smsPhone(row.created_by);
+  const at = timestamp(row.created_at);
+  if (
+    row.channel_id !== channelId ||
+    !from ||
+    from === line ||
+    from === smsPhone(row.channel_name) ||
+    !at
+  )
+    return null;
+  if (typeof row.message_content !== 'string') return null;
+  return {
+    type: 'message',
+    id: row.message_id || null,
+    line,
+    channelId,
+    from,
+    text: row.message_content,
+    threadId: row.thread_id || null,
+    receivedAt: at,
+    direction: 'inbound',
+    mediaUrl: row.media_url || null,
+  };
+}

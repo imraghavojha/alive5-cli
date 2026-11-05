@@ -11,7 +11,7 @@ export function register(program, { write, opts }) {
   channels
     .command('add')
     .argument('<line>', 'Alive5 number in E.164 format')
-    .description('Register this client if needed and subscribe a line')
+    .description('Create a WebSocket subscription for a line')
     .action(async (line, o, cmd) => write(await addLine(phone(line, 'line'), opts(cmd))));
   channels
     .command('remove')
@@ -20,7 +20,7 @@ export function register(program, { write, opts }) {
     .action(async (line, o, cmd) => write(await removeLine(phone(line, 'line'), opts(cmd))));
   channels
     .command('list')
-    .description('List this client’s subscribed lines')
+    .description('List locally saved line subscriptions')
     .action(async (o, cmd) => write(await listLines(opts(cmd))));
 
   for (const name of ['listen', 'wait']) {
@@ -28,10 +28,10 @@ export function register(program, { write, opts }) {
       .command(name)
       .description(
         name === 'wait'
-          ? 'Print and acknowledge exactly one text, then exit'
-          : 'Stream and acknowledge inbound texts until stopped',
+          ? 'Print exactly one inbound text, then exit'
+          : 'Stream inbound texts until stopped',
       )
-      .option('--line <e164>', 'receive only this line; other texts stay buffered')
+      .option('--line <e164>', 'connect only this subscribed line')
       .option('--notify', 'show macOS Notification Center alerts')
       .option('--json', 'write one JSON envelope per text (NDJSON)');
     if (name === 'wait')
