@@ -6,6 +6,11 @@ import { join } from 'node:path';
 process.env.ALIVE5_CONFIG_DIR = mkdtempSync(join(tmpdir(), 'alive5-demo-'));
 const { launchTui } = await import('../src/tui/runtime.js');
 import { sendForm } from '../src/api.js';
+const demoInbox = {
+  notifications: false,
+  subscriptions: { '+15555550100': { subscriptionId: 'demo-subscription' } },
+};
+
 const FIRST = [
   'Avery',
   'Sam',
@@ -63,6 +68,39 @@ await launchTui({
     effect: 'cosmos',
     logo: 'frame',
     theme: process.env.DEMO_THEME || 'dark',
+  },
+  inbox: {
+    config: async () => demoInbox,
+    registeredClient: async () => structuredClone(demoInbox),
+    addLine: async (line) => {
+      demoInbox.subscriptions[line] = { subscriptionId: 'demo-subscription' };
+    },
+    removeLine: async (line) => {
+      delete demoInbox.subscriptions[line];
+    },
+    saveNotifications: async (enabled) => {
+      demoInbox.notifications = enabled;
+    },
+    notifier: () => () => {},
+    receive: async (client, options) => {
+      for (const line of Object.keys(client.subscriptions)) options.status(line, 'listening');
+      const timer = setTimeout(async () => {
+        const event = {
+          id: 'demo-inbound',
+          from: '+15555550101',
+          line: '+15555550100',
+          text: 'C — see you tomorrow at 10, thank you!',
+          receivedAt: new Date().toISOString(),
+          mediaUrl: null,
+        };
+        await options.write(event);
+        options.notify(event);
+      }, 4500);
+      await new Promise((resolve) =>
+        options.signal.addEventListener('abort', resolve, { once: true }),
+      );
+      clearTimeout(timer);
+    },
   },
   services: {
     account: async () => ({ org_name: 'Studio workspace' }),

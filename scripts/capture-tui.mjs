@@ -129,6 +129,28 @@ export async function capture(name) {
   ).join('\n');
   await writeFile(`${out}/${name}.txt`, text);
 }
+if (process.env.CAPTURE_INBOX) {
+  await sleep(900);
+  pty.write('7\r');
+  await sleep(400);
+  await capture('inbox-idle-listening-notifications-off');
+  pty.write('n');
+  await sleep(200);
+  await capture('inbox-idle-listening-notifications-on');
+  for (let i = 0; i < 32; i++) {
+    await capture(`listening-${String(i).padStart(3, '0')}`);
+    await sleep(100);
+  }
+  await sleep(900);
+  await capture('inbox-received-notifications-on');
+  pty.write('n');
+  await sleep(200);
+  await capture('inbox-received-notifications-off');
+  pty.write('q');
+  await new Promise((resolve) => pty.onExit(resolve));
+  emulator.dispose();
+  process.exit(0);
+}
 if (process.env.CAPTURE_ANIMATION) {
   for (let i = 0; i < 100 && bytes === 0; i++) await sleep(20);
   for (let i = 0; i < Number(process.env.CAPTURE_FRAMES || 28); i++) {
