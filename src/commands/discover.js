@@ -39,11 +39,11 @@ const NOTES = [
   'sms send requires --yes in noninteractive mode.',
   '--dry-run on sms send validates locally only; it makes no API request.',
   'Errors use the same envelope with ok:false and a nonzero exit code.',
-  'inbox listen and wait use one push WebSocket, reconnect automatically, and never poll the Alive5 API.',
+  'inbox listen and wait use a push WebSocket per line, reconnect with backoff, and backfill history only on connect/reconnect.',
   'Inbox streams write one success envelope per text (NDJSON); statuses and error envelopes go to stderr only.',
-  'Inbox events contain type, id, line, channelId, from, text, threadId, receivedAt. Acks follow stdout writes.',
-  'inbox wait emits and acks one matching text, exits 0, or exits 124 on timeout (seconds). Other texts remain unacked.',
-  'Relay replay is at least once, retained for 24 hours; deduplicate by data.id. Media-only texts are not delivered.',
+  'Inbox events contain type, id, line, channelId, from, text, threadId, receivedAt, direction, mediaUrl. threadId, mediaUrl and history IDs may be null.',
+  'inbox wait emits one matching text, exits 0, or exits 124 on timeout (seconds). Checkpoints advance only after stdout succeeds.',
+  'History/live dedupe is best effort by sender, text and time within five seconds. History indexing can lag; media-only texts are not delivered by webhooks.',
   'Inbox streams do not support --raw or --fields. --output text does not override NDJSON when piped.',
 ];
 
@@ -80,21 +80,24 @@ export function register(program, { write }) {
               inbox: {
                 environment: 'ALIVE5_RELAY_URL',
                 storedAt: 'inbox.json in the config directory, mode 0600',
-                config: '{relayUrl,clientId,token,wsUrl}; no default relay URL',
+                config:
+                  '{relayUrl,clientId,subscriptions:{line:{subscriptionId,deliveryToken,websocketUrl,channelId,checkpoint?}}}; no default relay URL',
                 register: 'alive5 inbox channels add <line>',
                 transport:
-                  'Authorization: Bearer <token>; Alive5 key only on registration and line add/remove',
+                  'WebSocket query subscriptionId/deliveryToken; X-A5-APIKEY on subscription add/remove and Alive5 history reads',
               },
             },
             sideEffects: {
-              writes: [
-                'sms send',
+              writes: ['sms send', 'inbox channels add', 'inbox channels remove'],
+              localWrites: [
+                'auth login',
+                'auth logout',
+                'appearance set',
                 'inbox channels add',
                 'inbox channels remove',
-                'inbox listen (acks)',
-                'inbox wait (one ack)',
+                'inbox listen (checkpoint)',
+                'inbox wait (checkpoint)',
               ],
-              localWrites: ['auth login', 'auth logout', 'appearance set', 'inbox channels add'],
               endpoint: SEND_PATH,
             },
             exitCodes: EXIT_CODES,
