@@ -2,6 +2,8 @@ import { CliError, EXIT, httpError } from './errors.js';
 import { clean } from './http.js';
 import { inboxConfig, saveInboxConfig, key } from './storage.js';
 import { USER_AGENT } from './meta.js';
+import { randomUUID } from 'node:crypto';
+import { channels } from './api.js';
 
 export const notRegistered = () =>
   new CliError(
@@ -49,21 +51,24 @@ async function settings() {
 
 export async function registeredClient() {
   const { saved, url } = await settings();
-  if (saved.relayUrl !== url || !saved.clientId || !saved.token || !saved.wsUrl)
+  if (saved.relayUrl !== url || !Object.keys(saved.subscriptions || {}).length)
     throw notRegistered();
-  relayUrl(saved.wsUrl, true);
+  for (const subscription of Object.values(saved.subscriptions)) {
+    if (!subscription.subscriptionId || !subscription.deliveryToken || !subscription.channelId)
+      throw notRegistered();
+    relayUrl(subscription.websocketUrl, true);
+  }
   return saved;
 }
 
 async function request(client, path, { method = 'GET', apiKey, body, timeout = 30000 } = {}) {
   try {
-    const response = await fetch(`${client.relayUrl}/v1/cli${path}`, {
+    const response = await fetch(`${client.relayUrl}/v1/subscriptions${path}`, {
       method,
       headers: {
         Accept: 'application/json',
         'User-Agent': USER_AGENT,
-        ...(client.token && { Authorization: `Bearer ${client.token}` }),
-        ...(apiKey && { 'X-Alive5-Api-Key': apiKey }),
+        ...(apiKey && { 'X-A5-APIKEY': apiKey }),
         ...(body && { 'Content-Type': 'application/json' }),
       },
       body: body && JSON.stringify(body),
@@ -79,7 +84,6 @@ async function request(client, path, { method = 'GET', apiKey, body, timeout = 3
         throw new CliError('INVALID_RESPONSE', 'Relay returned invalid JSON.', EXIT.api);
     }
     if (!response.ok) {
-      if (response.status === 401 && client.token) throw notRegistered();
       const error = httpError(
         response.status,
         data?.error?.message || `Relay returned HTTP ${response.status}.`,
@@ -95,7 +99,7 @@ async function request(client, path, { method = 'GET', apiKey, body, timeout = 3
         'Could not reach the relay. Check your connection and relay URL.',
         EXIT.api,
       );
-    for (const secret of [apiKey, client.token].filter(Boolean)) {
+    for (const secret of [apiKey].filter(Boolean)) {
       error.message = clean(error.message, secret);
       error.code = clean(error.code, secret);
     }
@@ -105,63 +109,67 @@ async function request(client, path, { method = 'GET', apiKey, body, timeout = 3
 
 export async function addLine(line, options) {
   const { saved, url } = await settings();
+  if (saved.relayUrl && saved.relayUrl !== url && Object.keys(saved.subscriptions || {}).length)
+    throw new CliError(
+      'RELAY_CHANGED',
+      'Remove saved subscriptions before changing relay URL.',
+      EXIT.usage,
+    );
   const apiKey = await key();
-  const register = async () => {
-    const data = await request({ relayUrl: url }, '/register', {
-      ...options,
-      method: 'POST',
-      apiKey,
-      body: {},
-    });
-    if (
-      !data ||
-      !['clientId', 'token', 'wsUrl'].every((k) => typeof data[k] === 'string' && data[k])
-    )
-      throw new CliError(
-        'INVALID_RESPONSE',
-        'Relay registration returned an incomplete client.',
-        EXIT.api,
-      );
-    const client = {
-      relayUrl: url,
-      clientId: data.clientId,
-      token: data.token,
-      wsUrl: relayUrl(data.wsUrl, true),
-    };
-    await saveInboxConfig(client);
-    return client;
+  const channel = (await channels({ ...options, apiKey })).find((c) => c.name === line);
+  if (!channel?.id) throw new CliError('line_not_in_account', 'Line not in account.', EXIT.auth);
+  // Persist identity before POST so a retry after a lost response uses the same target.
+  const client = {
+    relayUrl: url,
+    clientId: saved.clientId || randomUUID(),
+    subscriptions: saved.subscriptions || {},
   };
-  let client =
-    saved.relayUrl !== url || !saved.clientId || !saved.token || !saved.wsUrl
-      ? await register()
-      : saved;
-  const add = () =>
-    request(client, '/lines', { ...options, method: 'POST', apiKey, body: { line } });
-  let data;
-  try {
-    data = await add();
-  } catch (error) {
-    if (error.code !== 'not_registered') throw error;
-    client = await register();
-    data = await add();
-  }
-  return clean(clean(data, apiKey), client.token);
+  await saveInboxConfig(client);
+  const data = await request(client, '', {
+    ...options,
+    method: 'POST',
+    apiKey,
+    body: { phoneNumber: line, target: { type: 'websocket', clientId: client.clientId } },
+  });
+  if (
+    !data ||
+    !['id', 'deliveryToken', 'websocketUrl'].every((k) => typeof data[k] === 'string' && data[k])
+  )
+    throw new CliError('INVALID_RESPONSE', 'Relay returned an incomplete subscription.', EXIT.api);
+  const previous = client.subscriptions[line];
+  client.subscriptions[line] = {
+    subscriptionId: data.id,
+    deliveryToken: data.deliveryToken,
+    websocketUrl: relayUrl(data.websocketUrl, true),
+    channelId: channel.id,
+    ...(previous?.subscriptionId === data.id &&
+      previous.checkpoint && { checkpoint: previous.checkpoint }),
+  };
+  await saveInboxConfig(client);
+  return { line, subscriptionId: data.id, channelId: channel.id };
 }
 
 export async function removeLine(line, options) {
-  const client = await registeredClient();
-  await request(client, `/lines/${encodeURIComponent(line)}`, {
-    ...options,
-    method: 'DELETE',
-    apiKey: await key(),
-  });
+  const { saved, url } = await settings();
+  if (saved.relayUrl !== url) throw notRegistered();
+  const subscription = saved.subscriptions?.[line];
+  if (subscription) {
+    await request(saved, `/${encodeURIComponent(subscription.subscriptionId)}`, {
+      ...options,
+      method: 'DELETE',
+      apiKey: await key(),
+    });
+    delete saved.subscriptions[line];
+    await saveInboxConfig(saved);
+  }
   return { line, removed: true };
 }
 
-export async function listLines(options) {
-  const client = await registeredClient();
-  const data = await request(client, '/lines', options);
-  if (!Array.isArray(data?.lines))
-    throw new CliError('INVALID_RESPONSE', 'Relay returned an unfamiliar line list.', EXIT.api);
-  return clean(data.lines, client.token);
+export async function listLines() {
+  const saved = await inboxConfig();
+  return Object.entries(saved.subscriptions || {}).map(([line, s]) => ({
+    line,
+    subscriptionId: s.subscriptionId,
+    channelId: s.channelId,
+  }));
 }

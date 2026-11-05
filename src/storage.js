@@ -52,6 +52,14 @@ export const inboxConfig = () => readJson('inbox.json', {});
 
 export const saveInboxConfig = (value) => writeJson('inbox.json', value);
 
+// Read fresh config so a receiver never restores a concurrently removed subscription.
+export async function saveInboxCheckpoint(line, subscriptionId, checkpoint) {
+  const saved = await inboxConfig();
+  if (saved.subscriptions?.[line]?.subscriptionId !== subscriptionId) return;
+  saved.subscriptions[line].checkpoint = checkpoint;
+  await saveInboxConfig(saved);
+}
+
 export const logout = () => rm(path(CREDENTIALS), { force: true });
 
 export async function key() {
