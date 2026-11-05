@@ -78,6 +78,8 @@ alive5 completion zsh > "${fpath[1]}/_alive5"
 
 `--dry-run` validates locally and prints the exact form without calling the API. Replace it with `--yes` to send. To include a full day, set `--until` to the day after.
 
+SMS `conversations list` includes messages at or after `--since` and before `--until` (UTC), including activity in threads started earlier. It scans the v1.2 message feed because v1.0 filters thread start dates and can miss active threads. Date, channel, and thread filters run locally; `--page` selects 25 conversations ordered by latest matching message, with each transcript oldest first. Thread start/end dates and other metadata unavailable in the feed remain null. `--raw` keeps the `Items`/`page`/`pages` shape, grouping the original message rows under each thread's `chat_conversation`. An incomplete scan returns an error instead of partial results.
+
 ## Receive texts
 
 Subscribe an Alive5 number to receive inbound texts in your terminal or agent. The relay is configured by default.

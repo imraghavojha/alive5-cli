@@ -47,6 +47,7 @@ export async function conversations(type, options = {}) {
   const live = type === 'livechat';
   if (live && (options.channel || options.thread))
     throw usage('--channel and --thread are documented for sms and fbm only.');
+  if (type === 'sms') return smsConversations(options, page);
   // Live chat pages are zero-indexed upstream; the CLI is one-indexed everywhere.
   const params = live
     ? {
@@ -70,6 +71,63 @@ export async function conversations(type, options = {}) {
     data: options.raw ? d : items(d).map((c) => shape.conversation(c, type)),
     meta: live ? livePagination(d, page) : pagination(d, page),
   };
+}
+
+async function smsConversations(options, page) {
+  const since = Date.parse(options.since);
+  const until = Date.parse(options.until);
+  const matches = [];
+  const seen = new Set();
+  const incomplete = () =>
+    new CliError(
+      'CONVERSATIONS_INCOMPLETE',
+      'SMS conversation scan is incomplete. Retry with the same filters.',
+      EXIT.api,
+    );
+  // v1.0 filters thread start dates and can omit active threads. v1.2 ignores
+  // dates and defaults to ten messages, so scan all pages before grouping and
+  // paginating conversations locally. Do not assume a date-sorted feed.
+  for (let upstreamPage = 1; upstreamPage <= 100; upstreamPage++) {
+    options.signal?.throwIfAborted();
+    const data = await request(
+      query(`${V2}/1.2/conversations/sms`, { limit: 50, page: upstreamPage }),
+      options,
+    );
+    const rows = items(data);
+    const signature = JSON.stringify(rows);
+    if (rows.length && seen.has(signature)) throw incomplete();
+    seen.add(signature);
+    for (const row of rows) {
+      const at = Date.parse(shape.smsRow(row).at);
+      if (!Number.isFinite(at)) throw incomplete();
+      if (
+        at < since ||
+        at >= until ||
+        (options.channel && row.channel_id !== options.channel) ||
+        (options.thread && row.thread_id !== options.thread)
+      )
+        continue;
+      if (!row.thread_id || !row.channel_id) throw incomplete();
+      matches.push(row);
+    }
+    if (rows.length < 50) {
+      const all = shape.smsConversations(matches);
+      const totalPages = Math.ceil(all.length / 25);
+      const selected = all.slice((page - 1) * 25, page * 25);
+      return {
+        data: options.raw
+          ? { Items: selected, page, pages: totalPages }
+          : selected.map((c) => shape.conversation(c, 'sms')),
+        meta: {
+          page,
+          totalPages,
+          nextPage: page < totalPages ? page + 1 : null,
+          totalRecords: all.length,
+        },
+      };
+    }
+  }
+  throw incomplete();
 }
 
 function livePagination(d, page) {

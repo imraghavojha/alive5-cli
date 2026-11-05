@@ -73,6 +73,40 @@ export function conversation(c, type) {
   };
 }
 
+// Keep the transcript shape while retaining the original v1.2 rows for --raw.
+// These rows have no thread start/end timestamps; leave those unknown rather
+// than presenting the first/last message in the date range as thread dates.
+export function smsConversations(rows) {
+  const groups = new Map();
+  const newest = [...rows].sort((a, b) =>
+    timestamp(b.created_at).localeCompare(timestamp(a.created_at)),
+  );
+  const fields = [
+    'channel_id',
+    'channel_name',
+    'agent_id',
+    'crm_id',
+    'contacts_first_name',
+    'contacts_last_name',
+    'contacts_email',
+    'contacts_phone',
+    'contacts_phone_mobile',
+  ];
+  for (const row of newest) {
+    const key = JSON.stringify([row.channel_id, row.thread_id]);
+    if (!groups.has(key))
+      groups.set(key, { alive5_sessionID: row.thread_id, chat_conversation: [] });
+    const group = groups.get(key);
+    for (const field of fields) if (!group[field] && row[field]) group[field] = row[field];
+    group.chat_conversation.push(row);
+  }
+  // Groups are newest-active first; each transcript reads oldest to newest.
+  return [...groups.values()].map((group) => ({
+    ...group,
+    chat_conversation: group.chat_conversation.reverse(),
+  }));
+}
+
 export const displayName = (r = {}) =>
   r.name ||
   [r.firstName, r.lastName].filter(Boolean).join(' ') ||
