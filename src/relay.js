@@ -5,6 +5,9 @@ import { USER_AGENT } from './meta.js';
 import { randomUUID } from 'node:crypto';
 import { channels } from './api.js';
 
+export const DEFAULT_RELAY_URL =
+  'https://wmbb2krgd4yqmghwsxd3yamzey0ocqsz.lambda-url.us-east-1.on.aws/v1';
+
 export const notRegistered = () =>
   new CliError(
     'not_registered',
@@ -25,12 +28,18 @@ export function relayUrl(value, websocket = false) {
     url.password ||
     url.hash ||
     (!websocket && url.search) ||
-    (url.protocol !== secure &&
-      !(url.protocol === local && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
+    (websocket
+      ? url.protocol !== 'wss:' ||
+        url.port ||
+        !/^[a-z0-9-]+\.execute-api\.[a-z]{2}(?:-[a-z]+)+-\d\.amazonaws\.com$/.test(url.hostname)
+      : url.protocol !== secure &&
+        !(url.protocol === local && ['localhost', '127.0.0.1', '[::1]'].includes(url.hostname)))
   )
     throw new CliError(
       'INVALID_RELAY_URL',
-      `Use a ${secure}// relay URL (localhost may use ${local}//).`,
+      websocket
+        ? 'Use a wss:// API Gateway URL at <api-id>.execute-api.<region>.amazonaws.com.'
+        : `Use a ${secure}// relay URL (localhost may use ${local}//).`,
       EXIT.usage,
     );
   return websocket ? url.toString() : url.toString().replace(/\/$/, '');
@@ -38,13 +47,7 @@ export function relayUrl(value, websocket = false) {
 
 async function settings() {
   const saved = await inboxConfig();
-  const value = process.env.ALIVE5_RELAY_URL || saved.relayUrl;
-  if (!value)
-    throw new CliError(
-      'RELAY_NOT_CONFIGURED',
-      'Set ALIVE5_RELAY_URL=https://<deployed-relay-host>, or set relayUrl in inbox.json in the Alive5 config directory.',
-      EXIT.usage,
-    );
+  const value = process.env.ALIVE5_RELAY_URL || saved.relayUrl || DEFAULT_RELAY_URL;
   const url = relayUrl(value);
   return { saved, url };
 }
@@ -63,18 +66,21 @@ export async function registeredClient() {
 
 async function request(client, path, { method = 'GET', apiKey, body, timeout = 30000 } = {}) {
   try {
-    const response = await fetch(`${client.relayUrl}/v1/subscriptions${path}`, {
-      method,
-      headers: {
-        Accept: 'application/json',
-        'User-Agent': USER_AGENT,
-        ...(apiKey && { 'X-A5-APIKEY': apiKey }),
-        ...(body && { 'Content-Type': 'application/json' }),
+    const response = await fetch(
+      `${client.relayUrl.replace(/\/v1$/, '')}/v1/subscriptions${path}`,
+      {
+        method,
+        headers: {
+          Accept: 'application/json',
+          'User-Agent': USER_AGENT,
+          ...(apiKey && { 'X-A5-APIKEY': apiKey }),
+          ...(body && { 'Content-Type': 'application/json' }),
+        },
+        body: body && JSON.stringify(body),
+        redirect: 'error',
+        signal: AbortSignal.timeout(timeout),
       },
-      body: body && JSON.stringify(body),
-      redirect: 'error',
-      signal: AbortSignal.timeout(timeout),
-    });
+    );
     const text = await response.text();
     let data;
     try {

@@ -2,7 +2,7 @@ import WebSocket from 'ws';
 import { setTimeout as delay } from 'node:timers/promises';
 import { CliError, EXIT, envelope } from './errors.js';
 import { safe } from './output.js';
-import { notRegistered } from './relay.js';
+import { notRegistered, relayUrl } from './relay.js';
 import { inboxHistory } from './api.js';
 import { saveInboxCheckpoint } from './storage.js';
 import { createHash } from 'node:crypto';
@@ -77,8 +77,12 @@ async function close(socket) {
 
 // A connection holds live frames only while the history scan is running. Once
 // merged, pause the socket until stdout and the checkpoint have both drained.
-async function connection(subscription, line, { signal, deliver, pingMs, renewMs, history }) {
-  const url = new URL(subscription.websocketUrl);
+async function connection(
+  subscription,
+  line,
+  { signal, deliver, pingMs, renewMs, history, requestOptions },
+) {
+  const url = new URL(relayUrl(subscription.websocketUrl, true));
   url.searchParams.set('subscriptionId', subscription.subscriptionId);
   url.searchParams.set('deliveryToken', subscription.deliveryToken);
   const socket = new WebSocket(url, {
@@ -94,6 +98,8 @@ async function connection(subscription, line, { signal, deliver, pingMs, renewMs
   let queue = Promise.resolve();
   let scanTask = Promise.resolve();
   let pending = 0;
+  // Each history scan may consume each previously delivered occurrence once.
+  const historyMatches = new Set();
   try {
     return await new Promise((resolve, reject) => {
       const finish = (error, result = false) => {
@@ -101,7 +107,7 @@ async function connection(subscription, line, { signal, deliver, pingMs, renewMs
         ended = true;
         error ? reject(error) : resolve(result);
       };
-      const enqueue = (event) => {
+      const enqueue = (event, source = 'live') => {
         pending++;
         clearTimeout(pongDeadline);
         pongDeadline = undefined;
@@ -109,7 +115,7 @@ async function connection(subscription, line, { signal, deliver, pingMs, renewMs
         queue = queue
           .then(async () => {
             if (ended || signal.aborted) return;
-            if (await deliver(event, subscription)) finish(null, true);
+            if (await deliver(event, subscription, source, historyMatches)) finish(null, true);
             pending--;
             if (!pending && socket.readyState === WebSocket.OPEN) socket.resume();
           })
@@ -133,18 +139,20 @@ async function connection(subscription, line, { signal, deliver, pingMs, renewMs
         scanTask = Promise.resolve()
           .then(() =>
             history(line, subscription.channelId, since, {
+              ...requestOptions,
               signal: AbortSignal.any([signal, scanController.signal]),
             }),
           )
           .then((past) => {
             if (ended || signal.aborted) return;
             // Prefer the relay ID when a history row and live frame share a time.
-            const merged = [...held, ...past].sort(
-              (a, b) => Date.parse(a.receivedAt) - Date.parse(b.receivedAt),
-            );
+            const merged = [
+              ...held.map((event) => ({ event, source: 'live' })),
+              ...past.map((event) => ({ event, source: 'history' })),
+            ].sort((a, b) => Date.parse(a.event.receivedAt) - Date.parse(b.event.receivedAt));
             held = [];
             scanning = false;
-            for (const event of merged) enqueue(event);
+            for (const { event, source } of merged) enqueue(event, source);
           })
           .catch(finish);
       });
@@ -221,6 +229,7 @@ export async function receive(
     pingMs = 5 * 60 * 1000,
     renewMs = 110 * 60 * 1000,
     history = inboxHistory,
+    requestOptions = {},
     checkpoint = saveInboxCheckpoint,
     backoffMs = 1000,
   } = {},
@@ -248,33 +257,58 @@ export async function receive(
   let output = Promise.resolve();
   let completed = false;
   // All sockets share one output queue, including wait's single-text claim.
-  const deliver = (event, subscription) => {
+  const deliver = (event, subscription, source, historyMatches) => {
     const result = output.then(async () => {
       if (controller.signal.aborted || completed) return false;
       const at = Date.parse(event.receivedAt);
       const key = fingerprint(event);
       const saved = subscription.checkpoint;
-      if (
-        saved?.seen?.some(
-          (s) => (event.id && s.id === event.id) || (s.key === key && Math.abs(s.at - at) <= 5000),
-        )
-      )
+      const now = Date.now();
+      // ID retention uses observation time, independently of message timestamps
+      // and the much shorter history-overlap window. Migrate older checkpoints.
+      const eventIds = (
+        saved?.eventIds ||
+        saved?.seen?.filter((s) => s.id).map((s) => ({ id: s.id, seenAt: now })) ||
+        []
+      ).filter((s) => s.seenAt >= now - 30 * 60 * 1000);
+      if (event.id && eventIds.some((s) => s.id === event.id)) return false;
+      const match = saved?.seen?.find(
+        (s) =>
+          (!event.id || !s.id) &&
+          s.key === key &&
+          Math.abs(s.at - at) <= 5000 &&
+          (source === 'history' ? !historyMatches.has(s) : !s.id),
+      );
+      if (match && source === 'history' && !event.id) {
+        historyMatches.add(match);
         return false;
-      if (once) clearTimeout(timer);
-      try {
-        await write(event);
-      } catch {
-        throw new CliError(
-          'OUTPUT_ERROR',
-          'Could not write the text to stdout; checkpoint was not advanced.',
-          EXIT.local,
-        );
+      }
+      // Live frames with different IDs never match each other. An ID-less
+      // history occurrence can acquire one relay ID, consuming that occurrence.
+      const occurrence = match
+        ? { ...match, ...(event.id && { id: event.id }) }
+        : { key, at, id: event.id };
+      if (!match) {
+        if (once) clearTimeout(timer);
+        try {
+          await write(event);
+        } catch {
+          throw new CliError(
+            'OUTPUT_ERROR',
+            'Could not write the text to stdout; checkpoint was not advanced.',
+            EXIT.local,
+          );
+        }
       }
       if (controller.signal.aborted) return false;
       const latest = Math.max(at, Date.parse(saved?.receivedAt) || 0);
       const next = {
         receivedAt: new Date(latest).toISOString(),
-        seen: [...(saved?.seen || []), { key, at, id: event.id }]
+        eventIds: [...eventIds, ...(event.id ? [{ id: event.id, seenAt: now }] : [])],
+        seen: (match
+          ? saved.seen.map((s) => (s === match ? occurrence : s))
+          : [...(saved?.seen || []), occurrence]
+        )
           .filter((s) => s.at >= latest - 60000)
           .slice(-1000),
       };
@@ -288,6 +322,8 @@ export async function receive(
         );
       }
       subscription.checkpoint = next;
+      if (source === 'history' || historyMatches.has(match)) historyMatches.add(occurrence);
+      if (match) return false;
       notify?.(event);
       completed = once;
       return once;
@@ -307,6 +343,7 @@ export async function receive(
           pingMs,
           renewMs,
           history,
+          requestOptions,
         })
       )
         return;

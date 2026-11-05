@@ -5,6 +5,7 @@ import { VERSION, DOCS } from '../meta.js';
 import { EXIT_CODES, envelope, usage } from '../errors.js';
 import { configDir } from '../storage.js';
 import { SEND_PATH } from '../api.js';
+import { DEFAULT_RELAY_URL } from '../relay.js';
 import { examples } from './shared.js';
 
 export function describe(cmd) {
@@ -40,10 +41,10 @@ const NOTES = [
   '--dry-run on sms send validates locally only; it makes no API request.',
   'Errors use the same envelope with ok:false and a nonzero exit code.',
   'inbox listen and wait use a push WebSocket per line, reconnect with backoff, and backfill history only on connect/reconnect.',
-  'Inbox streams write one success envelope per text (NDJSON); statuses and error envelopes go to stderr only.',
+  'Inbox streams write readable text on a terminal, or one success envelope per text when piped or given --json (NDJSON); statuses and errors go to stderr only.',
   'Inbox events contain type, id, line, channelId, from, text, threadId, receivedAt, direction, mediaUrl. threadId, mediaUrl and history IDs may be null.',
-  'inbox wait emits one matching text, exits 0, or exits 124 on timeout (seconds). Checkpoints advance only after stdout succeeds.',
-  'History/live dedupe is best effort by sender, text and time within five seconds. History indexing can lag; media-only texts are not delivered by webhooks.',
+  'inbox wait emits one matching text, exits 0, or exits 124 after --wait <seconds>. Global --timeout is the HTTP timeout in milliseconds, including history reads. Checkpoints advance only after stdout succeeds.',
+  'Live events dedupe by relay ID for 30 minutes; history/live matching consumes one occurrence per sender, text and time match within five seconds. History indexing can lag; media-only texts are not delivered by webhooks.',
   'Inbox streams do not support --raw or --fields. --output text does not override NDJSON when piped.',
 ];
 
@@ -79,9 +80,10 @@ export function register(program, { write }) {
               ...AUTH,
               inbox: {
                 environment: 'ALIVE5_RELAY_URL',
+                defaultRelayUrl: DEFAULT_RELAY_URL,
                 storedAt: 'inbox.json in the config directory, mode 0600',
                 config:
-                  '{relayUrl,clientId,subscriptions:{line:{subscriptionId,deliveryToken,websocketUrl,channelId,checkpoint?}}}; no default relay URL',
+                  '{relayUrl,clientId,subscriptions:{line:{subscriptionId,deliveryToken,websocketUrl,channelId,checkpoint?}}}',
                 register: 'alive5 inbox channels add <line>',
                 transport:
                   'WebSocket query subscriptionId/deliveryToken; X-A5-APIKEY on subscription add/remove and Alive5 history reads',

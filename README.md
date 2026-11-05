@@ -80,26 +80,21 @@ alive5 completion zsh > "${fpath[1]}/_alive5"
 
 ## Receive texts
 
-Point the CLI at the deployed relay, then subscribe your Alive5 number:
+Subscribe an Alive5 number to receive inbound texts in your terminal or agent. The relay is configured by default.
 
 ```sh
-export ALIVE5_RELAY_URL='https://<deployed-relay-host>'
 alive5 inbox channels add +15555550100
-alive5 inbox wait --timeout 60 --json
-alive5 inbox listen --line +15555550100 --notify
-alive5 inbox channels list
-alive5 inbox channels remove +15555550100
+alive5 inbox wait --wait 60 --json              # one text; timeout in seconds
+alive5 inbox listen --line +15555550100 --notify  # continuous stream; macOS alerts
 ```
 
-There is no default relay URL. Set `ALIVE5_RELAY_URL` or `relayUrl` in `inbox.json` in the config directory; the environment variable overrides it. `channels add` uses your saved Alive5 key (or `ALIVE5_API_KEY`) to resolve the line’s channel and call `POST /v1/subscriptions` with `X-A5-APIKEY` and `target:{type:"websocket",clientId}`. A stable random client ID makes retries reuse the subscription. One subscription per line is saved locally as `{relayUrl,clientId,subscriptions:{"+15555550100":{subscriptionId,deliveryToken,websocketUrl,channelId,checkpoint?}}}` with file mode `0600`. The directory follows `ALIVE5_CONFIG_DIR`, then `$XDG_CONFIG_HOME/alive5`, then `~/.config/alive5`. Old CLI registrations must be replaced with `channels add` for each line. `channels list` reads only local config; `channels remove` deletes the shared subscription before removing local credentials. Failed deletion leaves credentials available for retry. Remove saved subscriptions before switching relay hosts.
+For agents: **wait → read → reply with `sms send` → wait**. Omit the wait timeout to wait indefinitely. The global `--timeout` controls HTTP requests in milliseconds: `alive5 --timeout 5000 inbox wait --wait 60`.
 
-For agents, use **wait → read → reply with `sms send` → wait**. `wait` prints exactly one text and exits 0, or exits 124 without stdout on timeout. Its `--timeout` is in seconds; omit it to wait indefinitely. `listen` runs until stopped. Both connect one WebSocket per subscribed line, or only `--line` when supplied. They authenticate sockets with `subscriptionId` and `deliveryToken` query parameters, send `{"action":"ping"}` every five minutes, detect missing pongs, reconnect with backoff, and renew sockets after 110 minutes (before API Gateway’s two-hour maximum). Treat socket URLs and delivery tokens as credentials. `--notify` adds macOS notifications; other systems warn once and continue.
+Output: readable on a terminal; JSON when piped or with `--json` (one object for `wait`, NDJSON for `listen`). Status and errors go to stderr.
 
-On each connection/reconnection, the socket opens first and holds live events while the CLI scans paginated Alive5 v1.2 SMS history (`limit=50`), filtering locally by channel, inbound phone sender and timestamp. The first scan covers the last 24 hours; later scans start one minute before the last successful output checkpoint. History and held live events merge oldest first, with best-effort dedupe by sender, text and timestamps within five seconds (plus exact relay event IDs). The checkpoint and up to 1,000 recent hashed fingerprints are saved only after stdout accepts each write; message bodies are not stored in config. A failed/incomplete scan exits with an error on stderr without advancing the checkpoint, including repeated pages or the 100-page scan guard. There is no periodic history polling. Alive5 history indexing can lag, so reconnect backfill cannot guarantee immediate or lossless recovery. Distinct identical texts within five seconds can be collapsed; duplicates outside the retained window can repeat.
+Exit codes: 0 success · 1 local · 2 usage · 3 auth · 4 API · 5 rate limit · 124 wait timeout · 130 cancelled.
 
-Piped output (or `--json`) is one JSON envelope per text (NDJSON for `listen`, one object for `wait`), with `data` containing `type`, `id`, `line`, `channelId`, `from`, `text`, `threadId`, `receivedAt`, `direction`, and `mediaUrl`. Thread IDs, media URLs and history message IDs may be null. Status and errors go only to stderr. On a terminal, each text is one readable line. Streams do not support `--fields` or `--raw`.
-
-The socket has no acknowledgement or replay protocol. Relay retries and history recovery can produce duplicate events; output checkpoints describe successful stdout writes, not your agent’s later processing. Media-only texts are not delivered by Alive5 webhooks. Ctrl+C or SIGTERM closes all sockets, cancels history scans and exits 130, including when stdout is blocked.
+Image-only texts aren't delivered. Texts missed while offline are recovered from history on reconnect; history indexing can delay recovery. Use `inbox channels list` to see subscriptions and `inbox channels remove <line>` to remove one. [Maintainer details](docs/inbox.md).
 
 ## For agents and scripts
 

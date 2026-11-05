@@ -10,9 +10,41 @@ import { pathToFileURL } from 'node:url';
 import { Writable } from 'node:stream';
 import { setTimeout as delay } from 'node:timers/promises';
 import { WebSocketServer } from 'ws';
-import { receive, writeText } from '../src/inbox.js';
+import { registerHooks } from 'node:module';
+import { relayUrl, DEFAULT_RELAY_URL } from '../src/relay.js';
 import { inboxHistory } from '../src/api.js';
 import { notifier } from '../src/notify.js';
+
+// Keep production URL validation intact. Only the test transport translates
+// synthetic API Gateway endpoints to the per-test loopback WebSocket server.
+const socketMock = `
+  import WebSocket from ${JSON.stringify(import.meta.resolve('ws'))};
+  export default class MockWebSocket extends WebSocket {
+    constructor(value, options) {
+      const url = new URL(value);
+      const port = url.hostname.match(/^(\\d+)\\.execute-api\\.us-east-1\\.amazonaws\\.com$/)?.[1];
+      if (!port || url.protocol !== 'wss:') throw new Error('Unexpected socket host');
+      url.protocol = 'ws:';
+      url.hostname = '127.0.0.1';
+      url.port = port;
+      super(url, options);
+    }
+  }
+`;
+const socketHooks = {
+  resolve(specifier, context, next) {
+    if (specifier === 'ws' && context.parentURL?.endsWith('/src/inbox.js'))
+      return { url: 'alive5-test:socket', shortCircuit: true };
+    return next(specifier, context);
+  },
+  load(url, context, next) {
+    if (url === 'alive5-test:socket')
+      return { format: 'module', source: socketMock, shortCircuit: true };
+    return next(url, context);
+  },
+};
+registerHooks(socketHooks);
+const { receive, writeText } = await import('../src/inbox.js');
 
 const LINE = '+15555550100';
 const OTHER = '+15555550200';
@@ -159,7 +191,7 @@ async function fixture(t, { registered = true, multiple = false } = {}) {
   const subscriptionFor = (line) => ({
     subscriptionId: line === LINE ? 'subscription-1' : 'subscription-2',
     deliveryToken: 'delivery-secret',
-    websocketUrl: relayUrl.replace('http:', 'ws:') + '/',
+    websocketUrl: `wss://${server.address().port}.execute-api.us-east-1.amazonaws.com/`,
     channelId: line === LINE ? 'channel-1' : 'channel-2',
   });
   const client = {
@@ -177,10 +209,15 @@ async function fixture(t, { registered = true, multiple = false } = {}) {
   await writeFile(
     preload,
     `
+    import { registerHooks } from 'node:module';
+    const socketMock = ${JSON.stringify(socketMock)};
+    registerHooks({${socketHooks.resolve.toString()}, ${socketHooks.load.toString()}});
     const nativeFetch = globalThis.fetch;
     globalThis.fetch = (url, init) => {
       const u = new URL(url);
       if (u.hostname === 'api-v2.alive5.com') return nativeFetch(${JSON.stringify(relayUrl)} + u.pathname + u.search, init);
+      if (u.origin === new URL(${JSON.stringify(DEFAULT_RELAY_URL)}).origin)
+        return nativeFetch(${JSON.stringify(relayUrl)} + u.pathname + u.search, init);
       if (u.origin !== ${JSON.stringify(relayUrl)}) throw new Error('Unexpected network host');
       return nativeFetch(url, init);
     };
@@ -349,9 +386,9 @@ test('legacy registration is replaced on add without calling the discarded API',
 test('setup, line authorization and switched relay errors retain exit codes', async (t) => {
   const f = await fixture(t, { registered: false });
   const unset = await f.run(['inbox', 'wait'], { ALIVE5_RELAY_URL: '' }).done;
-  assert.equal(unset.code, 2);
+  assert.equal(unset.code, 3);
   assert.equal(unset.stdout, '');
-  assert.match(JSON.parse(unset.stderr).error.message, /Set ALIVE5_RELAY_URL=/);
+  assert.equal(JSON.parse(unset.stderr).error.code, 'not_registered');
   const invalid = await f.run(['inbox', 'channels', 'add', '+15555550999']).done;
   assert.equal(invalid.code, 3);
   assert.equal(JSON.parse(invalid.stdout).error.code, 'line_not_in_account');
@@ -361,10 +398,70 @@ test('setup, line authorization and switched relay errors retain exit codes', as
   assert.equal(JSON.parse(switched.stderr).error.code, 'not_registered');
 });
 
+test('default relay registers without configuration and appends /v1 only once', async (t) => {
+  const f = await fixture(t, { registered: false });
+  assert.equal(
+    DEFAULT_RELAY_URL,
+    'https://wmbb2krgd4yqmghwsxd3yamzey0ocqsz.lambda-url.us-east-1.on.aws/v1',
+  );
+  const r = await f.run(['inbox', 'channels', 'add', LINE], { ALIVE5_RELAY_URL: '' }).done;
+  assert.equal(r.code, 0, r.stderr + r.stdout);
+  assert.equal((await f.saved()).relayUrl, DEFAULT_RELAY_URL);
+  assert.equal(f.requests.at(-1).url, '/v1/subscriptions');
+  const removed = await f.run(['inbox', 'channels', 'remove', LINE], { ALIVE5_RELAY_URL: '' }).done;
+  assert.equal(removed.code, 0, removed.stderr + removed.stdout);
+  assert.equal(f.requests.at(-1).url, '/v1/subscriptions/subscription-1');
+});
+
+test('saved relay override works without an environment override', async (t) => {
+  const f = await fixture(t);
+  f.state.frames = [event('saved-relay')];
+  const r = await f.run(['inbox', 'wait', '--wait', '2'], { ALIVE5_RELAY_URL: '' }).done;
+  assert.equal(r.code, 0, r.stderr);
+  assert.equal(JSON.parse(r.stdout).data.id, 'saved-relay');
+});
+
+test('socket URLs require WSS and an API Gateway hostname', () => {
+  for (const region of ['us-east-1', 'eu-west-2', 'ap-southeast-2', 'us-gov-west-1']) {
+    const url = `wss://abc123.execute-api.${region}.amazonaws.com/prod`;
+    assert.equal(relayUrl(url, true), url);
+  }
+  for (const url of [
+    'ws://127.0.0.1:9000/',
+    'ws://abc123.execute-api.us-east-1.amazonaws.com/prod',
+    'wss://unconfigured.example/steal',
+    'wss://abc123.execute-api.us-east-1.amazonaws.com.evil.example/prod',
+    'wss://evil.abc123.execute-api.us-east-1.amazonaws.com/prod',
+    'wss://abc123.execute-api.us-east-1.amazonaws.com:9000/prod',
+    'wss://user:secret@abc123.execute-api.us-east-1.amazonaws.com/prod',
+    'https://abc123.execute-api.us-east-1.amazonaws.com/prod',
+  ]) {
+    assert.throws(() => relayUrl(url, true), { code: 'INVALID_RELAY_URL' });
+  }
+});
+
+for (const url of ['ws://127.0.0.1:9000/', 'wss://unconfigured.example/steal']) {
+  test(`rejects ${url} from saved config, registration and direct receive before connecting`, async (t) => {
+    const f = await fixture(t);
+    f.client.subscriptions[LINE].websocketUrl = url;
+    await writeFile(join(f.dir, 'inbox.json'), JSON.stringify(f.client));
+    const wait = await f.run(['inbox', 'wait']).done;
+    assert.equal(wait.code, 2);
+    assert.equal(JSON.parse(wait.stderr).error.code, 'INVALID_RELAY_URL');
+    assert.equal(f.requests.length, 0);
+    await assert.rejects(f.receive(), { code: 'INVALID_RELAY_URL' });
+    const add = await f.run(['inbox', 'channels', 'add', LINE]).done;
+    assert.equal(add.code, 2);
+    assert.equal(JSON.parse(add.stdout).error.code, 'INVALID_RELAY_URL');
+    assert.equal(f.state.connections, 0);
+    assert.doesNotMatch(wait.stderr + add.stdout, /delivery-secret/);
+  });
+}
+
 test('wait emits one normalized nullable event and authenticates the socket by query', async (t) => {
   const f = await fixture(t, { multiple: true });
   f.state.frames = [event('other', OTHER), event('first'), event('second')];
-  const r = await f.run(['inbox', 'wait', '--line', LINE, '--json', '--timeout', '2']).done;
+  const r = await f.run(['inbox', 'wait', '--line', LINE, '--json', '--wait', '2']).done;
   assert.equal(r.code, 0, r.stderr);
   assert.equal(r.stderr, '');
   assert.deepEqual(JSON.parse(r.stdout).data, outputEvent(event('first')));
@@ -379,21 +476,39 @@ test('wait emits one normalized nullable event and authenticates the socket by q
     event('first').received_at,
   );
   // Repeated history/live overlap is skipped using the persisted successful output checkpoint.
-  const next = await f.run(['inbox', 'wait', '--line', LINE, '--timeout', '2']).done;
+  const next = await f.run(['inbox', 'wait', '--line', LINE, '--wait', '2']).done;
   assert.equal(next.code, 0, next.stderr);
   assert.equal(JSON.parse(next.stdout).data.id, 'second');
 });
 
 test('wait timeout interrupts both idle sockets and reconnect backoff', async (t) => {
   const f = await fixture(t);
-  let r = await f.run(['inbox', 'wait', '--timeout', '1']).done;
+  let r = await f.run(['inbox', 'wait', '--wait', '1']).done;
   assert.equal(r.code, 124);
   assert.equal(r.stdout, '');
   assert.equal(JSON.parse(r.stderr).error.code, 'WAIT_TIMEOUT');
   f.state.onConnect = (ws) => ws.terminate();
-  r = await f.run(['inbox', 'wait', '--timeout', '1']).done;
+  r = await f.run(['inbox', 'wait', '--wait', '1']).done;
   assert.equal(r.code, 124);
   assert.match(r.stderr, /reconnecting/);
+});
+
+test('wait seconds are independent of global HTTP milliseconds and history uses the global timeout', async (t) => {
+  const f = await fixture(t);
+  f.state.onHistory = async () => {
+    await delay(100);
+    return [];
+  };
+  const wait = await f.run(['--timeout', '5000', 'inbox', 'wait', '--wait', '1']).done;
+  assert.equal(wait.code, 124, wait.stderr);
+  assert.equal(JSON.parse(wait.stderr).error.code, 'WAIT_TIMEOUT');
+  const http = await f.run(['--timeout', '20', 'inbox', 'wait', '--wait', '2']).done;
+  assert.equal(http.code, 4, http.stderr);
+  assert.equal(JSON.parse(http.stderr).error.code, 'NETWORK_ERROR');
+  const rootHelp = await f.run(['--help']).done;
+  const waitHelp = await f.run(['inbox', 'wait', '--help']).done;
+  assert.match(rootHelp.stdout, /--timeout <ms>\s+request timeout in milliseconds/);
+  assert.match(waitHelp.stdout, /--wait <seconds>\s+.*seconds/);
 });
 
 test('history scans beyond fifty rows and filters channel, sender and time locally', async (t) => {
@@ -486,7 +601,7 @@ test('reconnect backfills a missed text, merges a live duplicate and preserves N
 test('all subscribed lines use sockets and serialize wait to exactly one successful write', async (t) => {
   const f = await fixture(t, { multiple: true });
   f.state.frames = [event('one'), event('two', OTHER)];
-  const r = await f.run(['inbox', 'wait', '--timeout', '2']).done;
+  const r = await f.run(['inbox', 'wait', '--wait', '2']).done;
   assert.equal(r.code, 0, r.stderr);
   assert.equal(r.stdout.trim().split('\n').length, 1);
   assert.equal(f.state.connections, 2);
@@ -549,7 +664,7 @@ for (const signal of ['SIGINT', 'SIGTERM']) {
 test('socket authentication failures stop with setup instructions on stderr', async (t) => {
   const f = await fixture(t);
   f.state.auth = false;
-  const r = await f.run(['inbox', 'wait', '--timeout', '2']).done;
+  const r = await f.run(['inbox', 'wait', '--wait', '2']).done;
   assert.equal(r.code, 3, r.stderr);
   assert.equal(r.stdout, '');
   assert.equal(JSON.parse(r.stderr).error.code, 'not_registered');
@@ -711,13 +826,13 @@ test('proactive socket renewal reconnects and backfills without waiting for serv
   assert.ok(f.state.sent.every((s) => s.action === 'ping'));
 });
 
-test('dedupe uses phone, text and a small time window, plus exact relay event IDs', async (t) => {
+test('live dedupe uses only relay IDs, preserving identical OK texts four seconds apart', async (t) => {
   const f = await fixture(t);
-  const original = event('same');
+  const original = { ...event('same'), message: 'OK' };
   f.state.frames = [
     original,
     original,
-    { ...original, event_id: 'replayed' },
+    { ...original, event_id: 'distinct', received_at: new Date(AT + 4000).toISOString() },
     { ...original, event_id: 'later', received_at: new Date(AT + 6000).toISOString() },
     { ...original, event_id: 'other-sender', from_phone: '+15555550102' },
   ];
@@ -730,11 +845,132 @@ test('dedupe uses phone, text and a small time window, plus exact relay event ID
     },
   });
   const stopped = assert.rejects(done, /stop/);
+  await until(() => f.state.checkpoints.length === 4);
+  controller.abort(new Error('stop'));
+  await stopped;
+  assert.deepEqual(
+    seen.map((e) => e.id),
+    ['same', 'other-sender', 'distinct', 'later'],
+  );
+  assert.ok(f.state.checkpoints.at(-1)[2].seen.every((s) => !s.key.includes('Hello')));
+});
+
+for (const skew of [-1000, 0, 1000]) {
+  test(`history/live overlap consumes one occurrence per match (history skew ${skew}ms)`, async (t) => {
+    const f = await fixture(t);
+    const frames = [0, 4000].map((offset, i) => ({
+      ...event(`sms-${i + 1}`, LINE, AT + offset),
+      message: 'OK',
+    }));
+    f.state.frames = frames;
+    f.state.rows = frames.map((e) =>
+      row({
+        ...e,
+        received_at: new Date(Date.parse(e.received_at) + skew).toISOString(),
+      }),
+    );
+    const seen = [];
+    const controller = new AbortController();
+    const done = f.receive({
+      signal: controller.signal,
+      write: async (e) => {
+        seen.push(e);
+      },
+      warn: () => {},
+    });
+    const stopped = assert.rejects(done, /stop/);
+    await until(() => seen.length >= 2);
+    // Repeated history scans must consume the two saved occurrences afresh.
+    f.state.sockets[0].close();
+    await until(() => f.state.connections === 2 && f.requests.length === 2);
+    await delay(50);
+    controller.abort(new Error('stop'));
+    await stopped;
+    assert.deepEqual(
+      seen.map((e) => e.text),
+      ['OK', 'OK'],
+    );
+    assert.deepEqual(
+      f.client.subscriptions[LINE].checkpoint.eventIds.map((s) => s.id),
+      ['sms-1', 'sms-2'],
+    );
+  });
+}
+
+test('one history occurrence suppresses only one of two distinct live IDs', async (t) => {
+  const f = await fixture(t);
+  const first = { ...event('sms-1'), message: 'OK' };
+  const second = { ...first, event_id: 'sms-2', received_at: new Date(AT + 4000).toISOString() };
+  f.state.frames = [first, second];
+  f.state.rows = [row({ ...first, received_at: new Date(AT - 1000).toISOString() })];
+  const seen = [];
+  const controller = new AbortController();
+  const done = f.receive({
+    signal: controller.signal,
+    write: async (e) => {
+      seen.push(e);
+    },
+  });
+  const stopped = assert.rejects(done, /stop/);
   await until(() => f.state.checkpoints.length === 3);
   controller.abort(new Error('stop'));
   await stopped;
-  assert.equal(seen.length, 3);
-  assert.ok(f.state.checkpoints.at(-1)[2].seen.every((s) => !s.key.includes('Hello')));
+  assert.deepEqual(
+    seen.map((e) => e.text),
+    ['OK', 'OK'],
+  );
+});
+
+test('relay IDs survive three-minute retries and restart, then expire after thirty minutes', async (t) => {
+  const f = await fixture(t);
+  t.mock.timers.enable({ apis: ['Date'], now: AT });
+  const seen = [];
+  const controller = new AbortController();
+  const done = f.receive({
+    signal: controller.signal,
+    history: async () => [],
+    write: async (e) => {
+      seen.push(e.id);
+    },
+  });
+  const stopped = assert.rejects(done, /stop/);
+  await until(() => f.state.connections === 1);
+  const send = (e) => f.state.sockets[0].send(JSON.stringify(e));
+  send(event('sms-1', LINE, Date.now()));
+  await until(() => f.state.checkpoints.length === 1);
+  t.mock.timers.tick(120000);
+  send(event('sms-2', LINE, Date.now()));
+  await until(() => f.state.checkpoints.length === 2);
+  assert.ok(f.client.subscriptions[LINE].checkpoint.seen.every((s) => s.id !== 'sms-1'));
+  t.mock.timers.tick(60000);
+  send(event('sms-1'));
+  await delay(50);
+  controller.abort(new Error('stop'));
+  await stopped;
+  assert.deepEqual(seen, ['sms-1', 'sms-2']);
+  // Reload the serialized checkpoint, rather than relying on an in-memory set.
+  f.client.subscriptions[LINE].checkpoint = JSON.parse(
+    JSON.stringify(f.state.checkpoints.at(-1)[2]),
+  );
+  f.state.frames = [event('sms-1'), event('sms-2'), event('sms-3', LINE, Date.now())];
+  await f.receive({
+    once: true,
+    history: async () => [],
+    write: async (e) => {
+      seen.push(e.id);
+    },
+  });
+  assert.deepEqual(seen, ['sms-1', 'sms-2', 'sms-3']);
+  t.mock.timers.tick(28 * 60000);
+  f.state.frames = [event('sms-1')];
+  await f.receive({
+    once: true,
+    history: async () => [],
+    write: async (e) => {
+      seen.push(e.id);
+    },
+  });
+  assert.deepEqual(seen, ['sms-1', 'sms-2', 'sms-3', 'sms-1']);
 });
 
 test('human output is safe and notification content is passed as data', async () => {
@@ -745,7 +981,8 @@ test('human output is safe and notification content is passed as data', async ()
       callback();
     },
   });
-  await writeText(outputEvent(event('human')), { stdout, json: false });
+  stdout.isTTY = true;
+  await writeText(outputEvent(event('human')), { stdout });
   assert.equal(output.trim().split('\n').length, 1);
   assert.doesNotMatch(output, /\u001b/);
   const calls = [];
@@ -775,11 +1012,11 @@ test('schema discovers inbox streaming rules and timeout exit code; invalid opti
   const data = JSON.parse(r.stdout).data;
   assert.equal(data.commands.name, 'wait');
   assert.equal(data.exitCodes['124'], 'inbox wait timed out');
-  assert.ok(data.commands.options.some((o) => o.flag === '--timeout <seconds>'));
+  assert.ok(data.commands.options.some((o) => o.flag === '--wait <seconds>'));
   assert.ok(data.notes.some((n) => n.includes('NDJSON')));
   for (const args of [
-    ['--timeout', '0'],
-    ['--timeout'],
+    ['--wait', '0'],
+    ['--wait'],
     ['--line', 'bad'],
     ['--fields', 'text'],
     ['--bad'],

@@ -35,30 +35,26 @@ export function register(program, { write, opts }) {
       .option('--notify', 'show macOS Notification Center alerts')
       .option('--json', 'write one JSON envelope per text (NDJSON)');
     if (name === 'wait')
-      command.option('--timeout <seconds>', 'exit 124 if no text arrives within this many seconds');
+      command.option('--wait <seconds>', 'exit 124 if no text arrives within this many seconds');
     command.action(async (o, cmd) => {
       const all = cmd.optsWithGlobals();
       if (all.fields || all.raw) throw usage('Inbox streams do not support --fields or --raw.');
       const line = o.line === undefined ? undefined : phone(o.line, 'line');
-      const timeoutValue =
-        o.timeout ??
-        (program.getOptionValueSource('timeout') === 'cli' ? program.opts().timeout : undefined);
       const timeout =
-        name !== 'wait' || timeoutValue === undefined
-          ? undefined
-          : integer(timeoutValue, 'timeout', 2147483);
+        name !== 'wait' || o.wait === undefined ? undefined : integer(o.wait, 'wait', 2147483);
       const json = Boolean(all.json || all.output === 'json' || !process.stdout.isTTY);
       const client = await registeredClient();
       await receive(client, {
         once: name === 'wait',
         line,
         timeout,
+        requestOptions: opts(program),
         write: (event) => writeText(event, { json }),
         notify: o.notify ? notifier() : undefined,
       });
     });
     examples(command, [
-      `alive5 inbox ${name} --line +15555550100 --json${name === 'wait' ? ' --timeout 60' : ''}`,
+      `alive5 inbox ${name} --line +15555550100 --json${name === 'wait' ? ' --wait 60' : ''}`,
     ]);
   }
 }
