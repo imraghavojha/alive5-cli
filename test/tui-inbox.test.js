@@ -5,6 +5,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setImmediate as settle } from 'node:timers/promises';
 import { PassThrough, Writable } from 'node:stream';
+import { setTimeout as sleep } from 'node:timers/promises';
+import { spawn } from 'node-pty';
+import headless from '@xterm/headless';
+import { preparePty } from '../scripts/pty-helper.mjs';
 import { Workspace } from '../src/tui/workspace.js';
 import { navigation } from '../src/tui/layout.js';
 import { mascots } from '../src/tui/mascot.js';
@@ -232,6 +236,85 @@ test('incoming texts are bounded, scrollable, readable in linear mode, and sanit
   f.app.quit();
   await f.app.inboxTask;
 });
+
+test('Inbox formats line and sender numbers without changing message bodies or subscription keys', async () => {
+  const f = fixture();
+  try {
+    await f.open();
+    await f.calls[0].write({ ...event(), text: 'See you tomorrow at 10, thank you!' });
+    await f.calls[0].write({
+      ...event('international'),
+      from: '+442012345678',
+      text: 'C — confirmed',
+    });
+    const frame = f.app.frame(110, 38).plain();
+    const linear = describeLinear(f.app.state);
+    for (const text of [frame, linear]) {
+      assert.match(text, /\[on\]\s+\+1 \(555\) 555-0100/);
+      assert.match(text, /\+1 \(555\) 555-0101 → \+1 \(555\) 555-0100/);
+      assert.match(text, /\+442012345678 → \+1 \(555\) 555-0100/);
+      assert.match(text, /See you tomorrow at 10, thank you!/);
+      assert.match(text, /C — confirmed/);
+    }
+    const body = frame.split('\n').find((line) => line.includes('See you tomorrow'));
+    assert.equal(body.trim(), 'See you tomorrow at 10, thank you!');
+    await f.app.handleKey(' ');
+    assert.deepEqual(f.changes, [['remove', LINE]]);
+  } finally {
+    f.app.quit();
+    await f.app.inboxTask;
+  }
+});
+
+test(
+  'Inbox demo receives a plain message body with formatted phone metadata in a real PTY',
+  { skip: process.platform === 'win32' && 'node-pty needs an attachable console' },
+  async () => {
+    await preparePty();
+    const term = new headless.Terminal({ cols: 110, rows: 38, allowProposedApi: true });
+    const pty = spawn(process.execPath, ['scripts/tui-demo.mjs'], {
+      cols: 110,
+      rows: 38,
+      cwd: process.cwd(),
+      env: { ...process.env, TERM: 'xterm-256color' },
+    });
+    pty.onData((chunk) => term.write(chunk));
+    const exited = new Promise((resolve) => pty.onExit(resolve));
+    const text = () =>
+      Array.from(
+        { length: 38 },
+        (_, i) => term.buffer.active.getLine(i)?.translateToString(true) || '',
+      ).join('\n');
+    const until = async (pattern) => {
+      for (let i = 0; i < 150; i++) {
+        await sleep(50);
+        if (text().includes(pattern)) return;
+      }
+      assert.fail(`Terminal did not show ${pattern}\n${text()}`);
+    };
+    try {
+      await until('Compose a text');
+      pty.write('7\r');
+      await until('Listening for incoming texts');
+      await until('See you tomorrow at 10, thank you!');
+      const frame = text();
+      assert.match(frame, /\+1 \(555\) 555-0101 → \+1 \(555\) 555-0100/);
+      assert.equal(
+        frame
+          .split('\n')
+          .find((line) => line.includes('See you tomorrow'))
+          .trim(),
+        'See you tomorrow at 10, thank you!',
+      );
+      assert.doesNotMatch(frame, /C —/);
+      pty.write('q');
+      assert.equal((await exited).exitCode, 0);
+    } finally {
+      pty.kill();
+      term.dispose();
+    }
+  },
+);
 
 test('listening animation stays in the header, follows connection state, and respects motion settings', async () => {
   const original = {

@@ -89,7 +89,7 @@ await launchTui({
           id: 'demo-inbound',
           from: '+15555550101',
           line: '+15555550100',
-          text: 'C — see you tomorrow at 10, thank you!',
+          text: 'See you tomorrow at 10, thank you!',
           receivedAt: new Date().toISOString(),
           mediaUrl: null,
         };

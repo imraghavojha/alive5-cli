@@ -2,7 +2,7 @@ import { createInterface } from 'node:readline';
 import { Workspace } from './workspace.js';
 import { navigation } from './layout.js';
 import { visibleRows, visibleOptions } from './panels.js';
-import { sanitize } from './text.js';
+import { sanitize, displayPhone } from './text.js';
 import { lineText } from './records.js';
 import * as inbox from './inbox.js';
 
@@ -28,10 +28,14 @@ export function describeLinear(state) {
     lines.push(`Notifications: ${panel.notifications ? 'on' : 'off'}`);
     lines.push(
       ...panel.lines.map(
-        (l, i) => `${i + 1}. [${l.enabled ? 'on' : 'off'}] ${l.line} · ${l.status}`,
+        (l, i) => `${i + 1}. [${l.enabled ? 'on' : 'off'}] ${displayPhone(l.line)} · ${l.status}`,
       ),
     );
-    lines.push(...panel.messages.slice(-10).map((e) => `${e.from} → ${e.line}: ${e.text}`));
+    lines.push(
+      ...panel.messages
+        .slice(-10)
+        .map((e) => `${displayPhone(e.from)} → ${displayPhone(e.line)}: ${e.text}`),
+    );
     lines.push(
       'Enter a line number to turn it on/off. :notify toggles notifications. :reconnect retries.',
     );

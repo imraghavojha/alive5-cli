@@ -1,5 +1,8 @@
 import stringWidth from 'string-width';
 
+export const displayPhone = (value) =>
+  String(value ?? '').replace(/^\+1(\d{3})(\d{3})(\d{4})$/, '+1 ($1) $2-$3');
+
 export const sanitize = (value) =>
   String(value ?? '')
     .replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, '')

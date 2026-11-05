@@ -1,4 +1,4 @@
-import { wrap, clipWithEllipsis, stringWidth, fuzzy, graphemes } from './text.js';
+import { wrap, clipWithEllipsis, stringWidth, fuzzy, graphemes, displayPhone } from './text.js';
 import { wrapWithCaret, length } from './editor.js';
 import { MESSAGE_LIMIT } from '../validate.js';
 import { logos, logoById } from './logo.js';
@@ -114,7 +114,7 @@ export const panels = {
         l,
         l.top + 3 + i,
         start + i === panel.index,
-        `${line.enabled ? '[on] ' : '[off]'} ${line.line}  ·  ${line.status}`,
+        `${line.enabled ? '[on] ' : '[off]'} ${displayPhone(line.line)}  ·  ${line.status}`,
         { index: start + i },
       );
     });
@@ -124,7 +124,7 @@ export const panels = {
     s.text(l.x, top, l.w, `Incoming texts  ·  ${panel.messages.length}`, s.theme.faint);
     const rows = panel.messages.flatMap((event) => [
       {
-        text: `${event.from} → ${event.line}  ·  ${event.receivedAt.replace('T', ' ').slice(0, 19)}`,
+        text: `${displayPhone(event.from)} → ${displayPhone(event.line)}  ·  ${event.receivedAt.replace('T', ' ').slice(0, 19)}`,
         label: true,
       },
       ...wrap(event.text || (event.mediaUrl ? '[Media message]' : '[Empty text]'), l.w - 2).map(
