@@ -4,7 +4,7 @@ import { MESSAGE_LIMIT } from '../validate.js';
 import { logos, logoById } from './logo.js';
 import { mascotById } from './mascot.js';
 import { navigation } from './layout.js';
-import { detailLines, ago } from './records.js';
+import { detailLines, ago, shortTime } from './records.js';
 import { mix } from './screen.js';
 
 const muted = (s, x, y, w, text) => s.text(x, y, w, text, s.theme.muted);
@@ -124,7 +124,7 @@ export const panels = {
     s.text(l.x, top, l.w, `Incoming texts  ·  ${panel.messages.length}`, s.theme.faint);
     const rows = panel.messages.flatMap((event) => [
       {
-        text: `${displayPhone(event.from)} → ${displayPhone(event.line)}  ·  ${event.receivedAt.replace('T', ' ').slice(0, 19)}`,
+        text: `${displayPhone(event.from)} → ${displayPhone(event.line)}  ·  ${shortTime(event.receivedAt)}`,
         label: true,
       },
       ...wrap(event.text || (event.mediaUrl ? '[Media message]' : '[Empty text]'), l.w - 2).map(

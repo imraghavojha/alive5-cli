@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, rm } from 'node:fs/promises';
@@ -443,4 +444,19 @@ test('linear mode streams incoming texts and accepts inbox controls without term
   assert.equal(f.calls[0].signal.aborted, true);
   assert.doesNotMatch(text, /\u001b/);
   f.app.quit();
+});
+
+test('inbox times use the local timezone, not UTC', async () => {
+  const { shortTime } = await import('../src/tui/records.js');
+  const at = '2026-11-05T21:59:56.000Z';
+  const d = new Date(at);
+  const pad = (n) => String(n).padStart(2, '0');
+  assert.equal(
+    shortTime(at),
+    `2026-11-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`,
+  );
+  assert.match(
+    readFileSync(new URL('../src/tui/panels.js', import.meta.url), 'utf8'),
+    /shortTime\(event\.receivedAt\)/,
+  );
 });
