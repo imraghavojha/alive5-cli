@@ -64,6 +64,11 @@ function drawSectionDetail(screen, left, top, mascot, section, time, palette) {
     put(cardX, y + 1, `│${text.padStart(Math.floor((5 + text.length) / 2)).padEnd(5)}│`);
     put(cardX, y + 2, '╰───┬─╯');
   };
+  if (section === 'inbox') {
+    const pulse = (Math.sin(time * 2.2) + 1) / 2;
+    put(left - 4, top + 1, '))', mix(screen.theme.bg, palette.m, 0.3 + pulse * 0.7));
+    put(left - 7, top + 1, ')', mix(screen.theme.bg, palette.m, 0.25 + (1 - pulse) * 0.6));
+  }
   if (section === 'messages' && phase >= 2 && phase <= 11)
     bubble(phase < 4 ? '·' : phase < 6 ? '··' : '···', top);
   if (section === 'conversations' && phase >= 2 && phase <= 12)

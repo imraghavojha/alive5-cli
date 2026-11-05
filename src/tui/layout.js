@@ -37,6 +37,12 @@ export const navigation = [
     description: 'Choose your wordmark, computer mascot, motion, and theme.',
     code: 'alive5 --no-animation',
   },
+  {
+    id: 'inbox',
+    label: 'Inbox',
+    description: 'Listen for incoming texts and manage subscribed lines.',
+    code: 'alive5 inbox listen',
+  },
 ];
 
 export const MIN_WIDTH = 40;

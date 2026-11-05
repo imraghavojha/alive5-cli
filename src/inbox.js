@@ -80,7 +80,7 @@ async function close(socket) {
 async function connection(
   subscription,
   line,
-  { signal, deliver, pingMs, renewMs, history, requestOptions },
+  { signal, deliver, pingMs, renewMs, history, requestOptions, status },
 ) {
   const url = new URL(relayUrl(subscription.websocketUrl, true));
   url.searchParams.set('subscriptionId', subscription.subscriptionId);
@@ -126,6 +126,7 @@ async function connection(
       signal.addEventListener('abort', abort, { once: true });
       if (signal.aborted) return abort();
       socket.on('open', () => {
+        status(line, 'backfill');
         ping = setInterval(() => {
           if (!pending && !pongDeadline && socket.readyState === WebSocket.OPEN) {
             pongDeadline = setTimeout(() => socket.terminate(), 60000);
@@ -152,6 +153,7 @@ async function connection(
             ].sort((a, b) => Date.parse(a.event.receivedAt) - Date.parse(b.event.receivedAt));
             held = [];
             scanning = false;
+            status(line, 'listening');
             for (const { event, source } of merged) enqueue(event, source);
           })
           .catch(finish);
@@ -163,6 +165,7 @@ async function connection(
         finish(auth ? notRegistered() : null);
       });
       socket.on('close', (code) => {
+        if (!signal.aborted) status(line, 'reconnecting');
         clearInterval(ping);
         clearTimeout(pongDeadline);
         clearTimeout(renewal);
@@ -219,6 +222,7 @@ const fingerprint = (event) =>
 export async function receive(
   client,
   {
+    status = () => {},
     once = false,
     line,
     timeout,
@@ -336,6 +340,7 @@ export async function receive(
     let backoff = backoffMs;
     while (!controller.signal.aborted) {
       const started = Date.now();
+      status(number, 'connecting');
       if (
         await connection(subscription, number, {
           signal: controller.signal,
@@ -344,6 +349,7 @@ export async function receive(
           renewMs,
           history,
           requestOptions,
+          status,
         })
       )
         return;

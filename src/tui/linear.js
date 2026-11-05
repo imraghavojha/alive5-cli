@@ -4,6 +4,7 @@ import { navigation } from './layout.js';
 import { visibleRows, visibleOptions } from './panels.js';
 import { sanitize } from './text.js';
 import { lineText } from './records.js';
+import * as inbox from './inbox.js';
 
 const say = (output, text = '') => output.write(sanitize(String(text)) + '\n');
 
@@ -23,7 +24,18 @@ export function describeLinear(state) {
       ),
       'Enter a number to select.',
     );
-  else if (panel.kind === 'list') {
+  else if (panel.kind === 'inbox') {
+    lines.push(`Notifications: ${panel.notifications ? 'on' : 'off'}`);
+    lines.push(
+      ...panel.lines.map(
+        (l, i) => `${i + 1}. [${l.enabled ? 'on' : 'off'}] ${l.line} · ${l.status}`,
+      ),
+    );
+    lines.push(...panel.messages.slice(-10).map((e) => `${e.from} → ${e.line}: ${e.text}`));
+    lines.push(
+      'Enter a line number to turn it on/off. :notify toggles notifications. :reconnect retries.',
+    );
+  } else if (panel.kind === 'list') {
     const rows = visibleRows(panel);
     lines.push(...rows.map((row, i) => `${i + 1}. ${row.cells.join(' | ')}`));
     lines.push('Enter a number for full details. :filter words searches loaded records.');
@@ -73,10 +85,28 @@ export async function launchLinear({
   services,
   account,
   settings,
+  inbox: inboxOverrides,
 } = {}) {
-  const app = new Workspace({ services, account, settings, onExit: () => {} });
+  const app = new Workspace({
+    services,
+    account,
+    settings,
+    inbox: inboxOverrides,
+    onExit: () => {},
+  });
   if (!account) await app.connect();
   const rl = createInterface({ input, output, terminal: false });
+  let scheduled = false;
+  app.onChange = () => {
+    if (scheduled || app.state.panel.kind !== 'inbox') return;
+    scheduled = true;
+    setImmediate(() => {
+      scheduled = false;
+      if (app.closed || app.state.panel.kind !== 'inbox') return;
+      say(output, describeLinear(app.state));
+      output.write('> ');
+    });
+  };
   say(output, describeLinear(app.state));
   output.write('> ');
   try {
@@ -116,6 +146,9 @@ export async function launchLinear({
         app.state.panel.filter = line === ':filter' ? '' : line.slice(8);
         app.state.panel.index = 0;
       } else if (line === ':next' && app.state.panel.next) await app.state.panel.next();
+      else if (line === ':notify' && app.state.panel.kind === 'inbox')
+        await inbox.toggleNotifications(app);
+      else if (line === ':reconnect' && app.state.panel.kind === 'inbox') inbox.start(app);
       else if (line === ':reply' && app.state.panel.kind === 'transcript')
         await app.messageRecord(app.state.panel.thread);
       else if (line === ':save' && app.state.panel.kind === 'appearance')
@@ -126,6 +159,9 @@ export async function launchLinear({
         if (panel.kind === 'home' && navigation[number]) {
           app.state.nav = number;
           await app.activate();
+        } else if (panel.kind === 'inbox' && panel.lines[number]) {
+          panel.index = number;
+          await inbox.toggleLine(app);
         } else if (panel.kind === 'select' && visibleOptions(panel)[number]) {
           panel.index = number;
           await app.choose(visibleOptions(panel)[number].option.value);
@@ -141,6 +177,8 @@ export async function launchLinear({
       output.write('> ');
     }
   } finally {
+    app.quit();
+    await app.inboxTask;
     rl.close();
   }
 }

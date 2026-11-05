@@ -13,12 +13,14 @@ import { handlers } from './keys.js';
 import * as flows from './flows.js';
 import * as records from './records.js';
 import * as edit from './editor.js';
+import * as inbox from './inbox.js';
 
 const ENTRANCE_MS = 850;
 
 export class Workspace {
   constructor({
     services = api,
+    inbox: inboxOverrides = {},
     account,
     settings = appearanceDefaults,
     onExit = () => {},
@@ -26,6 +28,7 @@ export class Workspace {
     onCopy = defaultCopy,
   } = {}) {
     this.services = services;
+    this.inbox = { ...inbox.inboxServices, ...inboxOverrides };
     this.onExit = onExit;
     this.onChange = onChange;
     this.onCopy = onCopy;
@@ -66,28 +69,33 @@ export class Workspace {
 
   show(panel, { remember = true } = {}) {
     const previous = this.state.panel;
+    inbox.stop(this);
     const plain =
-      ['home', 'appearance', 'help'].includes(panel.kind) ||
+      ['home', 'appearance', 'help', 'inbox'].includes(panel.kind) ||
       panel.fields?.some((f) => f.key === 'apiKey');
     if (!plain && panel.section === undefined) panel.section = previous.section;
     if (previous.section !== panel.section) this.replayAt = performance.now();
     if (remember && this.state.panel.kind !== 'home') this.history.push(this.state.panel);
     this.state.panel = panel;
+    if (panel.kind === 'inbox') inbox.start(this);
     this.state.error = '';
     this.changed();
   }
 
   back() {
+    inbox.stop(this);
     const previous = this.history.pop();
     if (!previous) return this.home();
     if (previous.section !== this.state.panel.section) this.replayAt = performance.now();
     this.state.panel = previous;
+    if (previous.kind === 'inbox') inbox.start(this);
     this.state.error = '';
     this.state.notice = '';
     this.changed();
   }
 
   home() {
+    inbox.stop(this);
     this.epoch++;
     this.history = [];
     this.state.panel = { kind: 'home' };
@@ -412,6 +420,7 @@ export class Workspace {
   }
 
   quit(code = 0) {
+    inbox.stop(this);
     this.closed = true;
     this.onExit(code);
   }

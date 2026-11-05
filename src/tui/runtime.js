@@ -5,6 +5,7 @@ import { Workspace } from './workspace.js';
 import { createDecoder } from './input.js';
 import { showsBanner } from './layout.js';
 import { appearance } from '../storage.js';
+import { stop as stopInbox } from './inbox.js';
 
 const FRAME_INTERVAL_MS = 1000 / 20;
 const ANIMATION_INTERVAL_MS = 160;
@@ -66,6 +67,10 @@ export async function launchTui(options = {}) {
   function restore() {
     if (finished) return;
     finished = true;
+    if (workspace) {
+      stopInbox(workspace);
+      workspace.closed = true;
+    }
     clearInterval(timer);
     decoder.stop();
     process.stdin.removeListener('data', onData);

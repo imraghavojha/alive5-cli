@@ -1,4 +1,5 @@
 import * as edit from './editor.js';
+import * as inbox from './inbox.js';
 import { visibleRows, visibleOptions, layoutLines, bubbles } from './panels.js';
 import { navigation } from './layout.js';
 import { logos } from './logo.js';
@@ -29,13 +30,25 @@ function scroll(panel, str, key, max) {
 }
 
 export const handlers = {
+  inbox(app, str, key) {
+    const panel = app.state.panel;
+    if (str === 'n') return inbox.toggleNotifications(app);
+    if (str === 'r') return inbox.start(app);
+    if (key.name === 'return' || str === ' ') return inbox.toggleLine(app);
+    if (isDown(str, key)) panel.index = clamp(panel.index + 1, panel.lines.length - 1);
+    else if (isUp(str, key)) panel.index = clamp(panel.index - 1, panel.lines.length - 1);
+    else if (key.name === 'pageup') panel.scroll += PAGE;
+    else if (key.name === 'pagedown') panel.scroll = Math.max(0, panel.scroll - PAGE);
+    else if (key.name === 'end') panel.scroll = 0;
+  },
+
   home(app, str, key) {
     const state = app.state;
     const recent = state.recent || [];
     // Tab moves between the menu and recent conversations, when they are on screen.
     if (key.name === 'tab' && app.cachedScreen?.hits.some((h) => h.group === 'recent'))
       state.focus = state.focus === 'recent' ? 'nav' : 'recent';
-    else if (/^[1-6]$/.test(str || '')) {
+    else if (/^[1-7]$/.test(str || '')) {
       state.nav = Number(str) - 1;
       state.focus = 'nav';
     } else if (state.focus === 'recent' && recent.length) {

@@ -87,6 +87,71 @@ function scrollNote(s, l, start, shown, total, suffix = '') {
 }
 
 export const panels = {
+  inbox(s, l, panel) {
+    const enabled = panel.lines.filter((line) => line.enabled);
+    const listening = enabled.filter((line) => line.status === 'listening');
+    const status = !enabled.length
+      ? 'No lines on'
+      : listening.length === enabled.length
+        ? 'Listening for incoming texts'
+        : enabled.some((line) => line.status === 'stopped')
+          ? 'Listener stopped · r reconnect'
+          : 'Connecting · recovering missed texts';
+    heading(s, l, 'Inbox', status);
+    const notifications = `Notifications ${panel.notifications ? 'on' : 'off'}`;
+    s.text(
+      l.x + l.w - notifications.length,
+      l.top,
+      notifications.length,
+      notifications,
+      panel.notifications ? s.theme.orange : s.theme.muted,
+    );
+    const visible = Math.max(1, Math.min(panel.lines.length, Math.floor((l.h - 5) / 2)));
+    const start = scrollWindow(panel.index, panel.lines.length, visible);
+    panel.lines.slice(start, start + visible).forEach((line, i) => {
+      row(
+        s,
+        l,
+        l.top + 3 + i,
+        start + i === panel.index,
+        `${line.enabled ? '[on] ' : '[off]'} ${line.line}  ·  ${line.status}`,
+        { index: start + i },
+      );
+    });
+    if (!panel.lines.length)
+      muted(s, l.x, l.top + 3, l.w, 'No SMS lines available in this workspace.');
+    const top = l.top + 4 + visible;
+    s.text(l.x, top, l.w, `Incoming texts  ·  ${panel.messages.length}`, s.theme.faint);
+    const rows = panel.messages.flatMap((event) => [
+      {
+        text: `${event.from} → ${event.line}  ·  ${event.receivedAt.replace('T', ' ').slice(0, 19)}`,
+        label: true,
+      },
+      ...wrap(event.text || (event.mediaUrl ? '[Media message]' : '[Empty text]'), l.w - 2).map(
+        (text) => ({ text }),
+      ),
+      ...(event.mediaUrl ? wrap(event.mediaUrl, l.w - 2).map((text) => ({ text })) : []),
+      { text: '' },
+    ]);
+    const height = Math.max(1, l.bottom - top - 2);
+    panel.scroll = Math.min(panel.scroll, Math.max(0, rows.length - height));
+    const offset = Math.max(0, rows.length - height - panel.scroll);
+    if (!rows.length)
+      muted(
+        s,
+        l.x + 1,
+        top + 2,
+        l.w - 2,
+        enabled.length ? 'Incoming texts will appear here.' : 'Turn a line on to start listening.',
+      );
+    rows
+      .slice(offset, offset + height)
+      .forEach((r, i) =>
+        s.text(l.x + 1, top + 1 + i, l.w - 2, r.text, r.label ? s.theme.muted : s.theme.ink),
+      );
+    scrollbar(s, l.x + l.w, top + 1, height, offset, height, rows.length);
+  },
+
   home(s, l, panel, state) {
     const menu = l.recent ? { ...l, w: l.recent.x - l.x - 2 } : l;
     const onMenu = state.focus !== 'recent';

@@ -126,6 +126,7 @@ export async function addLine(line, options) {
   if (!channel?.id) throw new CliError('line_not_in_account', 'Line not in account.', EXIT.auth);
   // Persist identity before POST so a retry after a lost response uses the same target.
   const client = {
+    ...(typeof saved.notifications === 'boolean' && { notifications: saved.notifications }),
     relayUrl: url,
     clientId: saved.clientId || randomUUID(),
     subscriptions: saved.subscriptions || {},

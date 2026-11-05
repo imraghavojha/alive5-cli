@@ -40,6 +40,7 @@ Run `alive5` with no arguments.
 - **Home** shows the last seven days of conversations beside the menu. `Tab` moves between them.
 - **Conversations** read like a chat: the customer on the left, your team on the right. `Enter` opens one. `r` replies with the number and channel filled in.
 - **Compose** is one form: channel, teammate, sender, recipient, and message. Press `Enter` on an empty field, or `Ctrl+F`, to choose from a list you can search by typing. The CLI remembers your last channel and teammate.
+- **Inbox** listens for incoming texts while open. Select a line and press `Space` to subscribe or unsubscribe; `n` toggles macOS notifications and saves the preference locally. `PgUp`/`PgDn` scroll texts and `End` follows the latest. The mascot shows listening waves while connected.
 - **Review** lists every consequential choice before anything is sent. If a send result is uncertain, your draft is kept and the next `Enter` does not send it again.
 - **`Ctrl+K`** finds any action by name.
 - **The mouse works.** Click to select, click again to open, and scroll with the wheel. Hold Shift (Option in Terminal.app and iTerm2) to select text.

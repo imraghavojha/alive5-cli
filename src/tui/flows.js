@@ -6,6 +6,7 @@ import { displayName } from '../normalize.js';
 import { navigation } from './layout.js';
 import * as records from './records.js';
 import * as api from '../api.js';
+import * as inbox from './inbox.js';
 
 const AGENT_GUIDE = [
   '› Discover the command interface',
@@ -122,6 +123,7 @@ export async function activate(app) {
 
 function actions(app) {
   return {
+    inbox: () => inbox.open(app),
     appearance: () => app.show({ kind: 'appearance', index: 0 }, { remember: false }),
     agents: () =>
       app.reader(
@@ -232,6 +234,7 @@ export function palette(app) {
     ['Channels & teammates', '', () => directory(app, 'channels'), true],
     ['Tags', '', () => directory(app, 'tags'), true],
     ['Agent quick start', '5', go('agents')],
+    ['Inbox', '7', go('inbox'), true],
     ['Appearance', 'a', go('appearance')],
     ['Keyboard shortcuts', '?', () => app.help()],
     ['Home', '', () => app.home()],

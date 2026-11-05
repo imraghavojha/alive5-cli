@@ -8,6 +8,10 @@ import { VERSION } from '../meta.js';
 export { navigation, layout } from './layout.js';
 
 const HINTS = {
+  inbox: [
+    '↑↓ line · Space on/off · n notifications · Esc back',
+    '↑↓ · Space on/off · n alerts · Esc',
+  ],
   home: [
     '↑↓ select · Enter open · Ctrl+K commands · a appearance · ? help · q quit',
     '↑↓ · Enter · Ctrl+K · ? · q',
@@ -26,6 +30,7 @@ const SPINNER = '⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏';
 
 function secondary(state, panel, narrow) {
   if (state.busy) return `${SPINNER[state.tick % SPINNER.length]} ${state.busy}…`;
+  if (panel.kind === 'inbox') return 'PgUp/PgDn texts · End latest · r reconnect';
   if (panel.kind === 'appearance')
     return narrow
       ? '1–8 wordmark · s save'
@@ -140,6 +145,12 @@ export const SHORTCUTS = [
   ['y', 'Copy the highlighted value, if your terminal allows it'],
   ['m', 'Compose a message to the highlighted contact'],
   ['r', 'Reply to the highlighted conversation'],
+  ['', ''],
+  ['Inbox', ''],
+  ['Space / Enter', 'Turn the selected line on or off'],
+  ['n', 'Toggle and save desktop notifications'],
+  ['PgUp / PgDn', 'Scroll incoming texts; End follows the latest'],
+  ['r', 'Reconnect the inbox'],
   ['', ''],
   ['Editing', ''],
   ['← →', 'Move the caret'],

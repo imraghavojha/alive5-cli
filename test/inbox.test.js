@@ -327,8 +327,11 @@ test('channels use shared subscriptions, stable identity, private storage and lo
   });
   if (process.platform !== 'win32')
     assert.equal((await stat(join(f.dir, 'inbox.json'))).mode & 0o777, 0o600);
+  await writeFile(join(f.dir, 'inbox.json'), JSON.stringify({ ...saved, notifications: true }));
+  assert.equal((await f.run(['inbox', 'channels', 'add', LINE]).done).code, 0);
+  assert.equal((await f.saved()).notifications, true);
   const posts = f.requests.filter((r) => r.method === 'POST');
-  assert.equal(posts.length, 3);
+  assert.equal(posts.length, 4);
   for (const r of posts) {
     assert.equal(r.url, '/v1/subscriptions');
     assert.deepEqual(JSON.parse(r.body).target, { type: 'websocket', clientId: saved.clientId });
@@ -347,6 +350,7 @@ test('channels use shared subscriptions, stable identity, private storage and lo
   assert.equal(f.requests.filter((r) => r.method === 'DELETE').length, 1);
   assert.equal(f.requests.at(-1).url, '/v1/subscriptions/subscription-1');
   assert.deepEqual(Object.keys((await f.saved()).subscriptions), [OTHER]);
+  assert.equal((await f.saved()).notifications, true);
 });
 
 test('failed add preserves client identity; failed delete preserves subscription for retry', async (t) => {
@@ -596,6 +600,35 @@ test('reconnect backfills a missed text, merges a live duplicate and preserves N
   assert.equal(f.state.connections, 2);
   assert.equal(f.requests.length, 2);
   assert.deepEqual(f.state.sent, []);
+});
+
+test('receiver reports backfill, listening and reconnect states without polling history', async (t) => {
+  const f = await fixture(t);
+  const states = [];
+  const controller = new AbortController();
+  const done = f.receive({
+    signal: controller.signal,
+    status: (line, state) => states.push([line, state]),
+    warn: () => {},
+  });
+  const stopped = assert.rejects(done, /stop/);
+  await until(() => states.some(([, state]) => state === 'listening'));
+  assert.deepEqual(states.slice(0, 3), [
+    [LINE, 'connecting'],
+    [LINE, 'backfill'],
+    [LINE, 'listening'],
+  ]);
+  f.state.sockets[0].close();
+  await until(() => states.filter(([, state]) => state === 'listening').length === 2);
+  assert.deepEqual(states.slice(3), [
+    [LINE, 'reconnecting'],
+    [LINE, 'connecting'],
+    [LINE, 'backfill'],
+    [LINE, 'listening'],
+  ]);
+  assert.equal(f.requests.length, 2);
+  controller.abort(new Error('stop'));
+  await stopped;
 });
 
 test('all subscribed lines use sockets and serialize wait to exactly one successful write', async (t) => {
