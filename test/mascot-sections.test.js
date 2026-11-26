@@ -7,7 +7,7 @@ import { setTimeout as sleep } from 'node:timers/promises';
 import { spawn } from 'node-pty';
 import headless from '@xterm/headless';
 import { Workspace } from '../src/tui/workspace.js';
-import { mascots } from '../src/tui/mascot.js';
+import { mascots, mascotLeft } from '../src/tui/mascot.js';
 import { themes } from '../src/tui/screen.js';
 import { layout } from '../src/tui/layout.js';
 import { logos } from '../src/tui/logo.js';
@@ -66,7 +66,7 @@ test('all section animations leave content and header text still across widths, 
             active.slice(top),
             'animation cannot move task content',
           );
-          const cardX = banner.x + banner.width - mascot.width - 10;
+          const cardX = banner.x + mascotLeft(banner.width, mascot) - (width === 40 ? 4 : 9);
           const left = (time) =>
             app
               .frame(width, 24, app.replayAt + time)
@@ -196,8 +196,8 @@ test(
       };
       try {
         await until('Compose a text');
-        const spriteRow = mascot.id === 'isometric-desktop' ? 4 : 3;
-        const edge = mascot.id === 'isometric-desktop' ? '┌──────┐' : '╭─────╮';
+        const spriteRow = 3;
+        const edge = mascot.frames[0].rows[0].trimEnd();
         const homeX = lines()[spriteRow].lastIndexOf(edge);
         const homeWidth = lines()[21].trimEnd().length;
         assert.ok(homeX > 0);
@@ -225,13 +225,17 @@ test(
         );
         p.resize(40, 24);
         term.resize(40, 24);
-        await until('╭─────╮');
+        await until('↑↓  Enter  / filter  Esc');
+        await until('···');
         assert.ok(lines().join('\n').includes('Recent messages'));
-        assert.ok(
-          lines()
-            .join('\n')
-            .includes(mascot.id === 'isometric-desktop' ? '┌──────┐' : '╰┬───┬╯'),
+        assert.ok(lines().join('\n').includes('│   Alive5   │'));
+        const mascotX = 3 + mascotLeft(layout(40, 24, 'home', 'frame').logoWidth, mascot);
+        assert.equal(lines()[spriteRow].slice(mascotX).trimEnd(), edge);
+        assert.equal(
+          lines()[spriteRow + mascot.height - 1].slice(mascotX).trimEnd(),
+          mascot.frames[0].rows.at(-1).trimEnd(),
         );
+
         p.write('q');
         assert.equal((await exited).exitCode, 0);
         await new Promise((resolve) => term.write('', resolve));
@@ -265,7 +269,7 @@ test('navigation keeps the same content bounds, wordmark, and complete mascot at
       }
       for (const mascot of mascots) {
         const app = create({ mascot: mascot.id, logo: logo.id, motion: 'off', effect: 'signal' });
-        const x = home.banner.x + home.banner.width - mascot.width - 1;
+        const x = home.banner.x + mascotLeft(home.banner.width, mascot);
         const y = home.banner.y + Math.floor((home.banner.height - mascot.height) / 2);
         const sprite = () =>
           app

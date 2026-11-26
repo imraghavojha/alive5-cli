@@ -33,7 +33,7 @@ try {
   );
   assert.equal(data.ok, true);
   assert.equal(data.data.motion, 'full');
-  assert.equal(data.data.mascot, 'isometric-desktop');
+  assert.equal(data.data.mascot, 'wave');
   assert.equal(data.data.theme, 'terminal');
   console.log('Packaged CLI installed and launched successfully.');
 } finally {

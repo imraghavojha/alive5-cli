@@ -5,7 +5,7 @@ import { group, examples } from './shared.js';
 
 const DESCRIPTIONS = {
   logo: 'set logo; frame is Label, variation 8',
-  mascot: 'set the animated computer mascot',
+  mascot: 'set the animated robot mascot',
   motion: 'set motion; full is continuous, subtle is entrance only',
   effect: 'set animation effect',
   theme: 'set dark, light, terminal-native, or high-contrast colors',
@@ -20,7 +20,7 @@ export function register(program, { write }) {
   examples(style, [
     'alive5 appearance get',
     'alive5 appearance set --logo frame --motion subtle',
-    'alive5 appearance set --mascot pocket-macintosh --motion full',
+    'alive5 appearance set --mascot classic --motion full',
     'alive5 appearance set --motion off --dry-run',
   ]);
 

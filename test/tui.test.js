@@ -8,7 +8,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Readable, Writable } from 'node:stream';
 import { Workspace } from '../src/tui/workspace.js';
-import { mascots } from '../src/tui/mascot.js';
+import { mascots, mascotLeft } from '../src/tui/mascot.js';
 import { logos } from '../src/tui/logo.js';
 import { layout } from '../src/tui/layout.js';
 import { appearance, appearanceDefaults } from '../src/storage.js';
@@ -386,13 +386,13 @@ test('Home lists recent threads; Ctrl+K and the mouse reach any screen', async (
   assert.deepEqual(events, [{ button: 0, x: 11, y: 4, release: false }, 'ab']);
 });
 
-test('fresh appearance animates the desktop, saved motion survives, and native colors use defaults', async () => {
+test('fresh appearance animates Wave, saved motion survives, and native colors use defaults', async () => {
   const previous = process.env.ALIVE5_CONFIG_DIR;
   const dir = await mkdtemp(join(tmpdir(), 'alive5-new-appearance-'));
   process.env.ALIVE5_CONFIG_DIR = dir;
   try {
     assert.deepEqual(await appearance(), appearanceDefaults);
-    assert.equal((await appearance()).mascot, 'isometric-desktop');
+    assert.equal((await appearance()).mascot, 'wave');
     assert.equal((await appearance()).motion, 'full');
     assert.equal((await appearance()).theme, 'terminal');
     await writeFile(
@@ -633,7 +633,7 @@ test('eight logo previews are distinct, persist on save, and migrate old prefere
     const saved = await appearance();
     assert.deepEqual(saved, {
       logo: 'frame',
-      mascot: 'isometric-desktop',
+      mascot: 'wave',
       motion: 'off',
       effect: 'breathe',
       theme: 'terminal',
@@ -667,7 +667,7 @@ test('continuous effects stay in the banner and section motion stays in the head
   assert.deepEqual(c.slice(10), d.slice(10));
 });
 
-test('Cosmos preserves the label and content while the desktop and comets animate', () => {
+test('Cosmos preserves the label and content while Wave and comets animate', () => {
   for (const width of [40, 80, 110]) {
     const app = new Workspace({
       account: { org_name: 'Example' },
@@ -676,7 +676,7 @@ test('Cosmos preserves the label and content while the desktop and comets animat
     const snapshots = [2000, 6500, 13000].map((elapsed) => {
       const screen = app.frame(width, 24, app.replayAt + elapsed);
       assert.ok(screen.plain().includes('│   Alive5   │'));
-      assert.ok(screen.plain().includes('┌──────┐'));
+      assert.ok(screen.plain().includes('▄▄▄  ▄▄▄'));
       return screen.rows(24);
     });
     assert.deepEqual(snapshots[0].slice(8), snapshots[1].slice(8));
@@ -694,23 +694,33 @@ test('mascots switch in Appearance, save, and survive restart', async () => {
   const app = new Workspace({ account: { org_name: 'Example' } });
   await app.handleKey('a');
   for (let i = 0; i < 4; i++) await press(app, 'down');
-  assert.ok(app.frame(80, 24).plain().includes('Isometric Desktop'));
+  assert.ok(app.frame(80, 24).plain().includes('Wave'));
   await press(app, 'right');
-  assert.equal(app.state.mascot, 'pocket-macintosh');
-  assert.ok(app.frame(80, 24).plain().includes('Pocket Macintosh'));
-  assert.ok(app.frame(80, 24).plain().includes('╰┬───┬╯'));
+  assert.equal(app.state.mascot, 'classic');
+  assert.ok(app.frame(80, 24).plain().includes('Classic'));
+  assert.ok(app.frame(80, 24).plain().includes('▀▀▀  ▀▀▀'));
   await press(app, 'left');
-  assert.equal(app.state.mascot, 'isometric-desktop');
+  assert.equal(app.state.mascot, 'wave');
   await press(app, 'return');
-  assert.equal(app.state.mascot, 'pocket-macintosh');
+  assert.equal(app.state.mascot, 'classic');
   await app.handleKey('s');
   const saved = await appearance();
-  assert.equal(saved.mascot, 'pocket-macintosh');
+  assert.equal(saved.mascot, 'classic');
   const restarted = new Workspace({ settings: saved });
-  assert.ok(restarted.frame(80, 24).plain().includes('╰┬───┬╯'));
+  assert.ok(restarted.frame(80, 24).plain().includes('▀▀▀  ▀▀▀'));
 });
 
-test('both mascots fit every wordmark and theme and honor all motion modes', () => {
+test('both monochrome mascots fit every wordmark and theme and honor all motion modes', () => {
+  const stills = {
+    wave: [
+      ' ▄▄▄  ▄▄▄     ',
+      '██▀████▀███   ',
+      '▀▄█▄██▄█▄██ ██',
+      '  ▄▄██▄▄▄▄▄█▀ ',
+      ' ▀▀▀▀  ▀▀▀▀   ',
+    ],
+    classic: ['  ▄▄▄  ▄▄▄  ', '▄█ ▄ ██ ▄ █▄', ' ▀▄▄▄██▄▄▄▀ ', '   ▄▄██▄▄   ', '  ▀▀▀  ▀▀▀  '],
+  };
   for (const mascot of mascots) {
     for (const logo of logos) {
       for (const theme of Object.keys(themes)) {
@@ -719,17 +729,24 @@ test('both mascots fit every wordmark and theme and honor all motion modes', () 
             settings: { mascot: mascot.id, logo: logo.id, theme, motion: 'full' },
           });
           const { logoWidth, logoHeight } = layout(width, 24, 'home', logo.id);
-          const left = 3 + logoWidth - mascot.width - 1;
+          const left = 3 + mascotLeft(logoWidth, mascot);
           const top = 3 + Math.floor((logoHeight - mascot.height) / 2);
           const screen = app.frame(width, 24, app.replayAt);
-          const sprite = () =>
-            screen.cells.slice(top, top + mascot.height).map((row) =>
-              row
-                .slice(left, left + mascot.width)
-                .map((c) => c.ch)
-                .join(''),
-            );
-          assert.deepEqual(sprite(), mascot.frames[0].rows);
+          const sprite = screen.cells
+            .slice(top, top + mascot.height)
+            .map((row) => row.slice(left, left + mascot.width));
+          assert.deepEqual(
+            sprite.map((row) => row.map((cell) => cell.ch).join('')),
+            stills[mascot.id],
+          );
+          for (const { fg, bg } of sprite.flat()) {
+            assert.equal(fg, theme === 'terminal' ? null : screen.theme.ink);
+            assert.equal(bg, theme === 'terminal' ? null : screen.theme.bg);
+          }
+          for (const row of stills[mascot.id]) {
+            for (const depth of [0, 8, 24])
+              assert.ok(screen.rows(depth).some((line) => line.includes(row)));
+          }
           assert.ok(screen.plain().includes('Compose a text'));
         }
       }
@@ -740,7 +757,7 @@ test('both mascots fit every wordmark and theme and honor all motion modes', () 
     if (app.motionLocked) continue;
     const at = (elapsed) => app.frame(80, 24, app.replayAt + elapsed).rows(24);
     // Compare only the mascot columns so a wordmark effect cannot mask a frozen mascot.
-    const spriteLeft = 3 + layout(80, 24, 'home', 'frame').logoWidth - mascot.width - 1;
+    const spriteLeft = 3 + mascotLeft(layout(80, 24, 'home', 'frame').logoWidth, mascot);
     const spriteAt = (elapsed) =>
       app
         .frame(80, 24, app.replayAt + elapsed)
@@ -752,6 +769,8 @@ test('both mascots fit every wordmark and theme and honor all motion modes', () 
     assert.deepEqual(at(0).slice(8), at(2500).slice(8));
     app.state.motion = 'subtle';
     app.changed();
+    assert.notDeepEqual(spriteAt(0), spriteAt(650));
+    assert.deepEqual(spriteAt(0), spriteAt(1000));
     assert.deepEqual(at(1000), at(6000));
     app.state.motion = 'off';
     app.changed();
@@ -805,36 +824,36 @@ test(
         p.write('\x1b');
         await until('Compose a text');
         if (restarted) {
-          assert.ok(text().includes('╰┬───┬╯'));
+          assert.ok(text().includes('▀▀▀  ▀▀▀'));
+          const classic = mascots.find((mascot) => mascot.id === 'classic');
+          const start = 3 + mascotLeft(layout(80, 24, 'home', 'frame').logoWidth, classic);
           const sprites = new Set();
           for (let i = 0; i < 18; i++) {
             sprites.add(
               text()
                 .split('\n')
                 .slice(3, 8)
-                .map((row) => row.slice(69, 76))
+                .map((row) => row.slice(start, start + classic.width).padEnd(classic.width))
                 .join('\n'),
             );
             await sleep(180);
           }
-          assert.ok(sprites.size > 1, 'the saved Pocket Macintosh animates continuously');
+          assert.ok(sprites.size > 1, 'the saved Classic animates continuously');
         } else {
-          assert.ok(text().includes('┌──────┐'));
+          assert.ok(text().includes('▄▄▄  ▄▄▄'));
           p.write('a');
-          await until('Isometric Desktop');
+          await until('Wave');
           p.write('\x1b[B\x1b[B\x1b[B\x1b[B\x1b[C');
-          await until('Pocket Macintosh');
+          await until('Classic');
           p.write('s');
           await until('Appearance saved.');
-          assert.equal(
-            JSON.parse(await readFile(join(dir, 'appearance.json'))).mascot,
-            'pocket-macintosh',
-          );
+          assert.equal(JSON.parse(await readFile(join(dir, 'appearance.json'))).mascot, 'classic');
           p.resize(40, 24);
           term.resize(40, 24);
-          await until('Pocket Mac');
+          await until('wordmark  s save');
+          assert.ok(text().includes('Classic'));
           assert.ok(text().includes('Save appearance'));
-          assert.ok(text().includes('╰┬───┬╯'));
+          assert.ok(text().includes('▀▀▀  ▀▀▀'));
         }
         p.write('q');
         assert.equal((await exited).exitCode, 0);

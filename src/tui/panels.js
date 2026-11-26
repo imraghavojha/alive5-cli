@@ -352,7 +352,7 @@ export const panels = {
       ['Motion', MOTION[state.motion]],
       ['Effect', EFFECTS[state.effect]],
       ['Theme', l.w < 45 && state.theme === 'terminal' ? 'Terminal' : THEMES[state.theme]],
-      ['Mascot', l.w < 45 ? mascot.shortName : mascot.name],
+      ['Mascot', mascot.name],
       ['Replay', ''],
       ['Save appearance', ''],
     ];

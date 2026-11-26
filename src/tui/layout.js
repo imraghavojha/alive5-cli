@@ -34,7 +34,7 @@ export const navigation = [
   {
     id: 'appearance',
     label: 'Appearance',
-    description: 'Choose your wordmark, computer mascot, motion, and theme.',
+    description: 'Choose your wordmark, robot mascot, motion, and theme.',
     code: 'alive5 --no-animation',
   },
   {

@@ -64,7 +64,7 @@ await launchTui({
   account: { org_name: 'Studio workspace' },
   settings: {
     motion: process.env.DEMO_MOTION || 'full',
-    mascot: process.env.DEMO_MASCOT || 'isometric-desktop',
+    ...(process.env.DEMO_MASCOT && { mascot: process.env.DEMO_MASCOT }),
     effect: 'cosmos',
     logo: 'frame',
     theme: process.env.DEMO_THEME || 'dark',

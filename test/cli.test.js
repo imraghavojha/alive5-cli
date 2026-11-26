@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtemp, readFile, stat, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, stat, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { request, unwrap, clean } from '../src/http.js';
@@ -268,7 +268,7 @@ test('agents discover, preview, save, and read appearance without credentials or
     );
     assert.deepEqual(
       schema.data.commands.options.find((o) => o.flag === '--mascot <value>').choices,
-      ['isometric-desktop', 'pocket-macintosh'],
+      ['wave', 'classic'],
     );
     const saved = command(
       'appearance',
@@ -284,7 +284,7 @@ test('agents discover, preview, save, and read appearance without credentials or
     assert.equal(saved.stdout.includes('\x1b'), false);
     assert.deepEqual(JSON.parse(saved.stdout).data, {
       logo: 'frame',
-      mascot: 'isometric-desktop',
+      mascot: 'wave',
       effect: 'cosmos',
       motion: 'full',
       theme: 'terminal',
@@ -294,17 +294,36 @@ test('agents discover, preview, save, and read appearance without credentials or
     assert.equal(JSON.parse(preview.stdout).data.saved, false);
     assert.equal(JSON.parse(command('appearance', 'get').stdout).data.motion, 'full');
     assert.equal(JSON.parse(command('appearance', 'get').stdout).data.theme, 'terminal');
-    const mascotPreview = command('appearance', 'set', '--mascot', 'pocket-macintosh', '--dry-run');
-    assert.equal(JSON.parse(mascotPreview.stdout).data.mascot, 'pocket-macintosh');
-    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.mascot, 'isometric-desktop');
-    assert.equal(command('appearance', 'set', '--mascot', 'pocket-macintosh').status, 0);
-    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.mascot, 'pocket-macintosh');
+    const mascotPreview = command('appearance', 'set', '--mascot', 'classic', '--dry-run');
+    assert.equal(JSON.parse(mascotPreview.stdout).data.mascot, 'classic');
+    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.mascot, 'wave');
+    assert.equal(command('appearance', 'set', '--mascot', 'classic').status, 0);
+    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.mascot, 'classic');
     const before = await readFile(join(dir, 'appearance.json'), 'utf8');
     assert.equal(command('appearance', 'set', '--effect', 'invalid').status, 2);
     assert.equal(command('appearance', 'set', '--mascot', 'invalid').status, 2);
     assert.equal(command('appearance', 'set').status, 2);
     assert.equal(await readFile(join(dir, 'appearance.json'), 'utf8'), before);
     if (posixModes) assert.equal((await stat(join(dir, 'appearance.json'))).mode & 0o777, 0o600);
+
+    const file = join(dir, 'appearance.json');
+    const prefs = { logo: 'outline', motion: 'subtle', effect: 'orbit', theme: 'light' };
+    for (const mascot of ['isometric-desktop', 'pocket-macintosh']) {
+      const legacy = JSON.stringify({ ...prefs, mascot });
+      await writeFile(file, legacy);
+      assert.deepEqual(JSON.parse(command('appearance', 'get').stdout).data, {
+        ...prefs,
+        mascot: 'wave',
+      });
+      assert.equal(await readFile(file, 'utf8'), legacy);
+      assert.equal(command('appearance', 'set', '--mascot', mascot).status, 2);
+      assert.equal(command('appearance', 'set', '--theme', 'dark').status, 0);
+      assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), {
+        ...prefs,
+        theme: 'dark',
+        mascot: 'wave',
+      });
+    }
   } finally {
     await rm(dir, { recursive: true, force: true });
   }
