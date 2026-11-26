@@ -91,7 +91,7 @@ export const appearanceChoices = {
   logo: ['type', 'slash', 'outline', 'pixel', 'stipple', 'wire', 'lean', 'frame'],
   mascot: ['wave', 'classic'],
   motion: ['full', 'subtle', 'off'],
-  effect: ['signal', 'breathe', 'orbit', 'cosmos'],
+  effect: ['signal', 'breathe', 'orbit', 'cosmos', 'plain'],
   theme: ['dark', 'light', 'terminal', 'high-contrast'],
 };
 
@@ -99,20 +99,31 @@ export const appearanceDefaults = {
   logo: 'frame',
   mascot: appearanceChoices.mascot[0],
   motion: 'full',
-  effect: 'cosmos',
+  effect: 'plain',
   theme: 'terminal',
 };
 
 const APPEARANCE = 'appearance.json';
+const APPEARANCE_VERSION = 2;
 
 export async function appearance() {
   const value = await readJson(APPEARANCE, null);
-  return Object.fromEntries(
+  const settings = Object.fromEntries(
     Object.entries(appearanceChoices).map(([k, choices]) => [
       k,
       choices.includes(value?.[k]) ? value[k] : appearanceDefaults[k],
     ]),
   );
+  // The old file saved every preference, including the inherited Cosmos default.
+  if (
+    !value?.version &&
+    settings.logo === 'frame' &&
+    settings.mascot === 'wave' &&
+    settings.motion === 'full' &&
+    settings.effect === 'cosmos'
+  )
+    settings.effect = appearanceDefaults.effect;
+  return settings;
 }
 
 export async function saveAppearance(settings) {
@@ -126,10 +137,10 @@ export async function saveAppearance(settings) {
           field: k,
         },
       );
-  await writeJson(
-    APPEARANCE,
-    Object.fromEntries(Object.keys(appearanceDefaults).map((k) => [k, settings[k]])),
-  );
+  await writeJson(APPEARANCE, {
+    version: APPEARANCE_VERSION,
+    ...Object.fromEntries(Object.keys(appearanceDefaults).map((k) => [k, settings[k]])),
+  });
 }
 
 // The channel and teammate of the last accepted send, so the next compose

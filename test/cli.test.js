@@ -261,11 +261,8 @@ test('agents discover, preview, save, and read appearance without credentials or
     });
   try {
     const schema = JSON.parse(command('schema', 'appearance', 'set').stdout);
-    assert.ok(
-      schema.data.commands.options
-        .find((o) => o.flag === '--effect <value>')
-        .choices.includes('cosmos'),
-    );
+    const effects = schema.data.commands.options.find((o) => o.flag === '--effect <value>').choices;
+    assert.ok(effects.includes('cosmos') && effects.includes('plain'));
     assert.deepEqual(
       schema.data.commands.options.find((o) => o.flag === '--mascot <value>').choices,
       ['wave', 'classic'],
@@ -294,6 +291,7 @@ test('agents discover, preview, save, and read appearance without credentials or
     assert.equal(JSON.parse(preview.stdout).data.saved, false);
     assert.equal(JSON.parse(command('appearance', 'get').stdout).data.motion, 'full');
     assert.equal(JSON.parse(command('appearance', 'get').stdout).data.theme, 'terminal');
+    assert.equal(JSON.parse(command('appearance', 'get').stdout).data.effect, 'cosmos');
     const mascotPreview = command('appearance', 'set', '--mascot', 'classic', '--dry-run');
     assert.equal(JSON.parse(mascotPreview.stdout).data.mascot, 'classic');
     assert.equal(JSON.parse(command('appearance', 'get').stdout).data.mascot, 'wave');
@@ -318,11 +316,36 @@ test('agents discover, preview, save, and read appearance without credentials or
       assert.equal(await readFile(file, 'utf8'), legacy);
       assert.equal(command('appearance', 'set', '--mascot', mascot).status, 2);
       assert.equal(command('appearance', 'set', '--theme', 'dark').status, 0);
-      assert.deepEqual(JSON.parse(await readFile(file, 'utf8')), {
+      assert.deepEqual(JSON.parse(command('appearance', 'get').stdout).data, {
         ...prefs,
         theme: 'dark',
         mascot: 'wave',
       });
+    }
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
+
+test('legacy Wave defaults resolve to Plain and retain the terminal theme preference', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'alive5-appearance-migration-'));
+  const file = join(dir, 'appearance.json');
+  const env = { ...process.env, ALIVE5_CONFIG_DIR: dir, ALIVE5_API_KEY: '' };
+  const getAppearance = () =>
+    JSON.parse(spawnSync(process.execPath, ['bin/alive5.js', 'appearance', 'get'], { env }).stdout)
+      .data;
+  const legacy = { logo: 'frame', mascot: 'wave', motion: 'full', effect: 'cosmos' };
+  try {
+    for (const theme of ['terminal', 'light']) {
+      const saved = JSON.stringify({ ...legacy, theme });
+      await writeFile(file, saved);
+      assert.deepEqual(getAppearance(), { ...legacy, effect: 'plain', theme });
+      assert.equal(await readFile(file, 'utf8'), saved);
+    }
+    for (const custom of [{ mascot: 'classic' }, { logo: 'outline' }, { motion: 'subtle' }]) {
+      const settings = { ...legacy, ...custom, theme: 'terminal' };
+      await writeFile(file, JSON.stringify(settings));
+      assert.deepEqual(getAppearance(), settings);
     }
   } finally {
     await rm(dir, { recursive: true, force: true });

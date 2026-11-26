@@ -15,9 +15,9 @@ export async function banner() {
     import('./tui/screen.js'),
     import('./tui/logo.js'),
   ]);
-  const width = process.stdout.columns >= 70 ? 48 : 28;
-  const screen = new Screen(width + 4, LOGO_HEIGHT + 2);
-  drawLogo(screen, { x: 2, y: 1, width, motion: 'off' });
+  const width = Math.max(0, Math.min((process.stdout.columns || 38) - 4, 48));
+  const screen = new Screen(width + 4, LOGO_HEIGHT + 2, 'terminal');
+  drawLogo(screen, { x: 2, y: 1, width });
   const depth = 'NO_COLOR' in process.env ? 0 : process.env.COLORTERM === 'truecolor' ? 24 : 8;
   process.stdout.write(screen.rows(depth).join('\n') + '\n\n');
 }

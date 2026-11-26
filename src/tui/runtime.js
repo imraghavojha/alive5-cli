@@ -3,7 +3,7 @@ import { PassThrough } from 'node:stream';
 import { Terminal } from './terminal.js';
 import { Workspace } from './workspace.js';
 import { createDecoder } from './input.js';
-import { showsBanner } from './layout.js';
+import { animatesHeader } from './layout.js';
 import { appearance } from '../storage.js';
 import { stop as stopInbox } from './inbox.js';
 
@@ -132,7 +132,7 @@ export async function launchTui(options = {}) {
       workspace.state.tick++;
       workspace.changed();
     }
-    if (!showsBanner(workspace.state.panel.kind) && !workspace.state.panel.section) return;
+    if (!animatesHeader(workspace.state)) return;
     const settling = now - workspace.replayAt < ENTRANCE_WINDOW_MS;
     if (!settling && now - lastAnimation < ANIMATION_INTERVAL_MS) return;
     lastAnimation = now;

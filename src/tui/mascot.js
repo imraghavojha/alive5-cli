@@ -56,7 +56,7 @@ export const mascots = [
   {
     id: 'wave',
     name: 'Wave',
-    description: 'A monochrome robot that waves and blinks.',
+    description: 'A monochrome robot with a raised hand.',
     width: wave[0].length,
     height: (wave.length + 2) / 2,
     frames: [

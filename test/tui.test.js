@@ -386,13 +386,14 @@ test('Home lists recent threads; Ctrl+K and the mouse reach any screen', async (
   assert.deepEqual(events, [{ button: 0, x: 11, y: 4, release: false }, 'ab']);
 });
 
-test('fresh appearance animates Wave, saved motion survives, and native colors use defaults', async () => {
+test('fresh appearance uses the plain banner and keeps section motion and terminal colors', async () => {
   const previous = process.env.ALIVE5_CONFIG_DIR;
   const dir = await mkdtemp(join(tmpdir(), 'alive5-new-appearance-'));
   process.env.ALIVE5_CONFIG_DIR = dir;
   try {
     assert.deepEqual(await appearance(), appearanceDefaults);
     assert.equal((await appearance()).mascot, 'wave');
+    assert.equal((await appearance()).effect, 'plain');
     assert.equal((await appearance()).motion, 'full');
     assert.equal((await appearance()).theme, 'terminal');
     await writeFile(
@@ -413,6 +414,43 @@ test('fresh appearance animates Wave, saved motion survives, and native colors u
     else process.env.ALIVE5_CONFIG_DIR = previous;
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('the default banner matches the reference cells and stays still in the terminal palette', async () => {
+  const app = new Workspace({ account: { org_name: 'Example' } });
+  const banner = [
+    '                   ▄▄▄  ▄▄▄',
+    '╭────────────╮    ██▀████▀███',
+    '│   Alive5   │    ▀▄█▄██▄█▄██ ██',
+    '╰────────────╯      ▄▄██▄▄▄▄▄█▀',
+    '                   ▀▀▀▀  ▀▀▀▀',
+  ];
+  for (const width of [40, 80, 110]) {
+    for (const elapsed of [0, 650, 3600, 5400]) {
+      const screen = app.frame(width, 24, app.replayAt + elapsed);
+      const rows = screen.cells.slice(3, 8).map((row) => row.slice(3));
+      assert.deepEqual(
+        rows.map((row) =>
+          row
+            .map((cell) => cell.ch)
+            .join('')
+            .trimEnd(),
+        ),
+        banner,
+      );
+      assert.ok(rows.flat().every((cell) => cell.fg === null && cell.bg === null));
+    }
+  }
+  await app.handleKey('a');
+  const preview = app.frame(80, 24, app.replayAt + 650).plain();
+  assert.deepEqual(
+    preview
+      .split('\n')
+      .slice(3, 8)
+      .map((row) => row.slice(3).trimEnd()),
+    banner,
+  );
+  assert.ok(preview.includes('‹ Plain ›'));
 });
 
 test('linear workspace prints ordinary text and never sends without SEND', async () => {
@@ -726,7 +764,7 @@ test('both monochrome mascots fit every wordmark and theme and honor all motion 
       for (const theme of Object.keys(themes)) {
         for (const width of [40, 64, 80, 110]) {
           const app = new Workspace({
-            settings: { mascot: mascot.id, logo: logo.id, theme, motion: 'full' },
+            settings: { mascot: mascot.id, logo: logo.id, theme, motion: 'full', effect: 'signal' },
           });
           const { logoWidth, logoHeight } = layout(width, 24, 'home', logo.id);
           const left = 3 + mascotLeft(logoWidth, mascot);
@@ -821,6 +859,11 @@ test(
       try {
         // A scratch config opens the connection form; Escape reaches Home without an API request.
         await until('Connect to Alive5');
+        if (!restarted) {
+          const line = term.buffer.active.getLine(5);
+          assert.equal(line.translateToString(true).trim(), '│   Alive5   │    ▀▄█▄██▄█▄██ ██');
+          assert.ok(line.getCell(12).isFgDefault(), 'the numeral uses the terminal foreground');
+        }
         p.write('\x1b');
         await until('Compose a text');
         if (restarted) {
@@ -843,7 +886,9 @@ test(
           assert.ok(text().includes('▄▄▄  ▄▄▄'));
           p.write('a');
           await until('Wave');
-          p.write('\x1b[B\x1b[B\x1b[B\x1b[B\x1b[C');
+          p.write('\x1b[B\x1b[B\x1b[C');
+          await until('Light sweep');
+          p.write('\x1b[B\x1b[B\x1b[C');
           await until('Classic');
           p.write('s');
           await until('Appearance saved.');

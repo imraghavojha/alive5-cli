@@ -481,6 +481,7 @@ const EFFECTS = {
   breathe: 'Slow glow',
   orbit: 'Star drift',
   cosmos: 'Cosmos',
+  plain: 'Plain',
 };
 
 const THEMES = {

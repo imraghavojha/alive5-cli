@@ -63,10 +63,9 @@ const THREADS = [
 await launchTui({
   account: { org_name: 'Studio workspace' },
   settings: {
-    motion: process.env.DEMO_MOTION || 'full',
+    ...(process.env.DEMO_MOTION && { motion: process.env.DEMO_MOTION }),
     ...(process.env.DEMO_MASCOT && { mascot: process.env.DEMO_MASCOT }),
-    effect: 'cosmos',
-    logo: 'frame',
+    ...(process.env.DEMO_EFFECT && { effect: process.env.DEMO_EFFECT }),
     theme: process.env.DEMO_THEME || 'dark',
   },
   inbox: {

@@ -182,6 +182,7 @@ test(
         DEMO_MASCOT: mascot.id,
         DEMO_THEME: 'terminal',
         DEMO_MOTION: 'full',
+        DEMO_EFFECT: 'cosmos',
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
       };
@@ -207,6 +208,7 @@ test(
       };
       try {
         await until('Compose a text');
+        await until('q quit');
         const spriteRow = 3;
         const edge = mascot.frames[0].rows[0].trimEnd();
         const homeX = lines()[spriteRow].lastIndexOf(edge);

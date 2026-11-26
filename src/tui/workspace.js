@@ -1,6 +1,12 @@
 import * as api from '../api.js';
 import { CliError } from '../errors.js';
-import { config, saveConfig, saveAppearance, appearanceDefaults } from '../storage.js';
+import {
+  config,
+  saveConfig,
+  saveAppearance,
+  appearanceDefaults,
+  appearanceChoices,
+} from '../storage.js';
 import { validateKey, dateRange, MESSAGE_LIMIT } from '../validate.js';
 import { displayName } from '../normalize.js';
 import { sanitize } from './text.js';
@@ -8,7 +14,7 @@ import { visibleRows, layoutLines, bubbles } from './panels.js';
 import { drawLogo, logos } from './logo.js';
 import { mascots } from './mascot.js';
 import { view, SHORTCUTS } from './view.js';
-import { layout, navigation, showsBanner } from './layout.js';
+import { animatesHeader, layout, navigation, showsBanner } from './layout.js';
 import { handlers } from './keys.js';
 import * as flows from './flows.js';
 import * as records from './records.js';
@@ -330,7 +336,7 @@ export class Workspace {
       this.state.motion = step(['full', 'subtle', 'off'], this.state.motion);
       this.replay();
     } else if (panel.index === 2) {
-      this.state.effect = step(['signal', 'breathe', 'orbit', 'cosmos'], this.state.effect);
+      this.state.effect = step(appearanceChoices.effect, this.state.effect);
       this.replay();
     } else if (panel.index === 3) {
       this.state.theme = step(['dark', 'light', 'terminal', 'high-contrast'], this.state.theme);
@@ -468,7 +474,7 @@ export class Workspace {
       this.cacheKey = cacheKey;
     }
     const screen = this.cachedScreen;
-    if (!l.tooSmall && (showsBanner(panel.kind) || panel.section)) {
+    if (!l.tooSmall && animatesHeader(this.state)) {
       screen.fill(l.banner.x, l.banner.y, l.banner.width, l.banner.height, screen.theme.bg);
       drawLogo(screen, {
         ...l.banner,
