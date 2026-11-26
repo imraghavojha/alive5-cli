@@ -11,9 +11,9 @@ import { validateKey, dateRange, MESSAGE_LIMIT } from '../validate.js';
 import { displayName } from '../normalize.js';
 import { sanitize } from './text.js';
 import { visibleRows, layoutLines, bubbles } from './panels.js';
-import { drawLogo, logos } from './logo.js';
+import { logos } from './logo.js';
 import { mascots } from './mascot.js';
-import { view, SHORTCUTS } from './view.js';
+import { drawHeader, view, SHORTCUTS } from './view.js';
 import { animatesHeader, layout, navigation, showsBanner } from './layout.js';
 import { handlers } from './keys.js';
 import * as flows from './flows.js';
@@ -21,7 +21,8 @@ import * as records from './records.js';
 import * as edit from './editor.js';
 import * as inbox from './inbox.js';
 
-const ENTRANCE_MS = 850;
+const startsHeader = (previous, next) =>
+  previous.section !== next.section || (previous.kind !== next.kind && showsBanner(next.kind));
 
 export class Workspace {
   constructor({
@@ -56,12 +57,11 @@ export class Workspace {
       recentIndex: 0,
       ...appearanceDefaults,
       ...settings,
-      entrance: 0,
     };
     this.motionLocked = Boolean(process.env.ALIVE5_NO_ANIMATION || 'NO_COLOR' in process.env);
+    this.preferredMotion = this.state.motion;
     if (this.motionLocked) this.state.motion = 'off';
-    this.started = performance.now();
-    this.replayAt = this.started;
+    this.replayAt = performance.now();
     this.width = 100;
     this.height = 36;
   }
@@ -76,11 +76,11 @@ export class Workspace {
   show(panel, { remember = true } = {}) {
     const previous = this.state.panel;
     inbox.stop(this);
-    const plain =
+    const standalone =
       ['home', 'appearance', 'help', 'inbox'].includes(panel.kind) ||
       panel.fields?.some((f) => f.key === 'apiKey');
-    if (!plain && panel.section === undefined) panel.section = previous.section;
-    if (previous.section !== panel.section) this.replayAt = performance.now();
+    if (!standalone && panel.section === undefined) panel.section = previous.section;
+    if (startsHeader(previous, panel)) this.replayAt = performance.now();
     if (remember && this.state.panel.kind !== 'home') this.history.push(this.state.panel);
     this.state.panel = panel;
     if (panel.kind === 'inbox') inbox.start(this);
@@ -92,7 +92,7 @@ export class Workspace {
     inbox.stop(this);
     const previous = this.history.pop();
     if (!previous) return this.home();
-    if (previous.section !== this.state.panel.section) this.replayAt = performance.now();
+    if (startsHeader(this.state.panel, previous)) this.replayAt = performance.now();
     this.state.panel = previous;
     if (previous.kind === 'inbox') inbox.start(this);
     this.state.error = '';
@@ -104,7 +104,9 @@ export class Workspace {
     inbox.stop(this);
     this.epoch++;
     this.history = [];
-    this.state.panel = { kind: 'home' };
+    const panel = { kind: 'home' };
+    if (startsHeader(this.state.panel, panel)) this.replayAt = performance.now();
+    this.state.panel = panel;
     this.state.error = '';
     this.state.busy = '';
     this.changed();
@@ -308,14 +310,23 @@ export class Workspace {
   toggleMotion() {
     if (this.motionLocked)
       this.state.notice = 'Motion is disabled by environment or command flags.';
-    else this.state.motion = this.state.motion === 'off' ? 'full' : 'off';
+    else {
+      this.state.motion = this.state.motion === 'off' ? 'full' : 'off';
+      this.replayAt = performance.now();
+    }
     this.changed();
   }
 
   async saveAppearance() {
     await this.run('Saving appearance', async () => {
       const { logo, mascot, motion, effect, theme } = this.state;
-      await saveAppearance({ logo, mascot, motion, effect, theme });
+      await saveAppearance({
+        logo,
+        mascot,
+        motion: this.motionLocked ? this.preferredMotion : motion,
+        effect,
+        theme,
+      });
       this.state.notice = 'Appearance saved.';
     });
   }
@@ -466,26 +477,15 @@ export class Workspace {
     } else if (panel.kind === 'list') {
       panel.index = Math.max(0, Math.min(panel.index, visibleRows(panel).length - 1));
     }
-    const elapsed = now - this.replayAt;
-    this.state.entrance = this.state.motion === 'off' ? 1 : Math.min(1, elapsed / ENTRANCE_MS);
     const cacheKey = `${width}:${height}:${this.revision}`;
     if (this.cacheKey !== cacheKey) {
       this.cachedScreen = view(this.state, width, height, 0);
       this.cacheKey = cacheKey;
     }
     const screen = this.cachedScreen;
-    if (!l.tooSmall && animatesHeader(this.state)) {
+    if (!l.tooSmall && this.state.motion !== 'off' && animatesHeader(panel)) {
       screen.fill(l.banner.x, l.banner.y, l.banner.width, l.banner.height, screen.theme.bg);
-      drawLogo(screen, {
-        ...l.banner,
-        variant: this.state.logo,
-        mascot: this.state.mascot,
-        time: Math.max(0, elapsed) / 1000,
-        entrance: this.state.entrance,
-        motion: this.state.motion,
-        effect: showsBanner(panel.kind) ? this.state.effect : 'none',
-        section: panel.section,
-      });
+      drawHeader(screen, l.banner, this.state, Math.max(0, now - this.replayAt) / 1000);
     }
     return screen;
   }

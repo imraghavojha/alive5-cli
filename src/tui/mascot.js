@@ -3,38 +3,36 @@ import { mix } from './screen.js';
 const BLOCKS = { '..': ' ', '#.': '▀', '.#': '▄', '##': '█' };
 
 function frame(mask, ms) {
-  // The half-cell margins center the eight-pixel-tall silhouettes.
-  const blank = '.'.repeat(mask[0].length);
-  const pixels = [blank, ...mask, blank];
   const rows = [];
-  for (let i = 0; i < pixels.length; i += 2)
-    rows.push([...pixels[i]].map((pixel, x) => BLOCKS[pixel + pixels[i + 1][x]]).join(''));
+  for (let i = 0; i < mask.length; i += 2)
+    rows.push([...mask[i]].map((pixel, x) => BLOCKS[pixel + mask[i + 1][x]]).join(''));
   return { rows, ms };
 }
 
 const wave = [
-  '.###..###.....',
-  '###########...',
-  '##.####.###...',
-  '#.#.##.#.##.##',
-  '.##########.##',
-  '....##.....##.',
-  '..##########..',
-  '.####..####...',
+  '.##..##...',
+  '########..',
+  '##.##.##.#',
+  '#.#..#.#.#',
+  '.######..#',
+  '...##...##',
+  '..#######.',
+  '.###.###..',
 ];
 
 const raisedHand = [
   wave[0],
-  wave[1],
-  '##.####.###.##',
-  wave[3],
-  '.############.',
-  '....##.....#..',
+  '########.#',
+  wave[2],
+  '#.#..#.###',
+  '.######.#.',
+  '...##..##.',
   wave[6],
   wave[7],
 ];
 
 const classic = [
+  '............',
   '..###..###..',
   '.#...##...#.',
   '##.#.##.#.##',
@@ -43,14 +41,15 @@ const classic = [
   '.....##.....',
   '...######...',
   '..###..###..',
+  '............',
 ];
 
 const waveBlink = [...wave];
-waveBlink[2] = '###########...';
-waveBlink[3] = '#...##...##.##';
+waveBlink[2] = '########.#';
+waveBlink[3] = '#.####.#.#';
 
 const classicBlink = [...classic];
-classicBlink[2] = '##...##...##';
+classicBlink[3] = '##...##...##';
 
 export const mascots = [
   {
@@ -58,7 +57,7 @@ export const mascots = [
     name: 'Wave',
     description: 'A monochrome robot with a raised hand.',
     width: wave[0].length,
-    height: (wave.length + 2) / 2,
+    height: wave.length / 2,
     frames: [
       frame(wave, 520),
       frame(raisedHand, 260),
@@ -74,7 +73,7 @@ export const mascots = [
     name: 'Classic',
     description: 'A monochrome robot with a quiet blink.',
     width: classic[0].length,
-    height: (classic.length + 2) / 2,
+    height: classic.length / 2,
     frames: [
       frame(classic, 580),
       frame(classicBlink, 220),
@@ -97,8 +96,7 @@ function mascotFrame(mascot, time) {
 
 export const mascotById = (id) => mascots.find((item) => item.id === id) || mascots[0];
 
-// Center both silhouettes on the same axis.
-export const mascotLeft = (width, mascot) => width - 9 - Math.floor(mascot.width / 2);
+export const mascotLeft = (width, mascot) => width - mascot.width - 1;
 
 export function drawMascot({ screen, x, y, width, height, artWidth, t, section }, mascot) {
   const left = mascotLeft(width, mascot);
@@ -106,7 +104,7 @@ export function drawMascot({ screen, x, y, width, height, artWidth, t, section }
   if (left < artWidth + 2 || top < 0) return;
   const { rows } = mascotFrame(mascot, t);
   rows.forEach((row, py) => screen.put(x + left, y + top + py, row));
-  if (section) drawSectionDetail(screen, x + left, y + top, section, t, left - artWidth < 9);
+  if (section) drawSectionDetail(screen, x + left, y + top, section, t, left - artWidth < 10);
 }
 
 function drawSectionDetail(screen, left, top, section, time, compact) {

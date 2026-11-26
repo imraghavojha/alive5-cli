@@ -7,6 +7,18 @@ import { VERSION } from '../meta.js';
 
 export { navigation, layout } from './layout.js';
 
+export function drawHeader(screen, banner, { panel, logo, mascot, motion, effect }, time = 0) {
+  drawLogo(screen, {
+    ...banner,
+    time,
+    motion,
+    effect: effect === 'plain' || showsBanner(panel.kind) ? effect : 'none',
+    variant: logo,
+    mascot,
+    section: panel.section,
+  });
+}
+
 const HINTS = {
   inbox: [
     '↑↓ line · Space on/off · n notifications · Esc back',
@@ -69,17 +81,7 @@ export function view(state, width, height, time = 0) {
   const workspaceName = state.account?.org_name || 'Connect your workspace';
   if (state.notice) toast(s, l, state.notice, stringWidth(workspaceName));
   s.text(3, 1, l.w, workspaceName, s.theme.muted);
-  const connecting = panel.kind === 'form' && panel.fields.some((field) => field.key === 'apiKey');
-  drawLogo(s, {
-    ...l.banner,
-    time,
-    motion: state.motion,
-    effect:
-      showsBanner(panel.kind) || (connecting && state.effect === 'plain') ? state.effect : 'none',
-    variant: state.logo,
-    mascot: state.mascot,
-    section: panel.section,
-  });
+  drawHeader(s, l.banner, state, time);
   panels[panel.kind]?.(s, l, panel, state);
   footer(s, state, panel, l, width, height);
   return s;

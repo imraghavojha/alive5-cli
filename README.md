@@ -1,6 +1,6 @@
 # Alive5 CLI
 
-<img src="docs/media/hero.png" width="442" alt="Boxed Alive5 beside the still Wave mascot in terminal text">
+<img src="docs/media/hero.png" width="442" alt="Boxed Alive5 and the compact Wave mascot in terminal text">
 
 Read conversations, reply, and send texts from your terminal. The same commands return clean JSON for scripts and AI agents.
 
@@ -58,11 +58,11 @@ Run `alive5` with no arguments.
 | `?`               | Every shortcut                                              |
 | `q`               | Quit. `Ctrl+C` always quits.                                |
 
-**Appearance.** Press `a` to choose a wordmark, mascot, banner effect, and theme. By default, the Plain effect shows a boxed `Alive5` beside a still Wave in your terminal’s own foreground color. Use ←/→ to change a setting and `s` to save. Saved defaults from older versions also use Plain, with your theme preference preserved. Retired mascots resolve to Wave.
+**Appearance.** Press `a` to choose a wordmark, mascot, banner effect, motion, and theme. The default Plain effect draws the boxed `Alive5` and compact Wave in your terminal’s foreground color. Wave sits at the right edge of the banner and waves and blinks with Full motion. Use ←/→ to change a setting and `s` to save. Older default settings resolve to Plain and Wave and keep your theme.
 
-Motion controls the animated banner effects you select in Appearance and the mascot cues in task headers, including typing dots in Messages, a typing cursor in Compose, a contact card in Contacts, and speech bubbles in Conversations. Full plays continuously, Subtle plays an entrance, and Off pauses motion. `NO_COLOR`, `ALIVE5_NO_ANIMATION=1`, or `--no-animation` also turn motion off.
+Motion controls the mascot and section cues independently of the banner effect. Messages shows typing dots, Compose shows a typing prompt, Contacts shows a contact card, Conversations shows speech bubbles, and Inbox shows listening waves. Full plays continuously, Subtle plays a brief entrance, and Off holds a still pose. `NO_COLOR`, `ALIVE5_NO_ANIMATION=1`, or `--no-animation` also turn motion off.
 
-Run `alive5 appearance set --mascot classic --effect signal --motion full` to see Classic blink, or `alive5 appearance set --mascot wave --logo frame --effect plain` to restore the default banner. [Compare the wordmarks](docs/media/logos-v3.png) · [See the optional animated effects](docs/media/logo-motion.gif)
+Run `alive5 appearance set --mascot classic --effect signal --motion full` to see Classic blink with the Light sweep effect, or `alive5 appearance set --mascot wave --logo frame --effect plain --motion full` to restore the default banner. [Compare the wordmarks](docs/media/logos-v3.png) · [Watch Wave and Classic](docs/media/logo-motion.gif)
 
 **Line mode.** `alive5 --linear` runs the same workspace as plain lines of text, without full-screen drawing. It is meant for screen readers, logs, and slow connections, but it has not yet been tested with a screen reader.
 

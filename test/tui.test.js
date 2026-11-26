@@ -416,40 +416,37 @@ test('fresh appearance uses the plain banner and keeps section motion and termin
   }
 });
 
-test('the default banner matches the reference cells and stays still in the terminal palette', async () => {
+test('the default banner keeps the boxed wordmark and right-anchored Wave in terminal colors', async () => {
   const app = new Workspace({ account: { org_name: 'Example' } });
-  const banner = [
-    '                   ▄▄▄  ▄▄▄',
-    '╭────────────╮    ██▀████▀███',
-    '│   Alive5   │    ▀▄█▄██▄█▄██ ██',
-    '╰────────────╯      ▄▄██▄▄▄▄▄█▀',
-    '                   ▀▀▀▀  ▀▀▀▀',
-  ];
-  for (const width of [40, 80, 110]) {
-    for (const elapsed of [0, 650, 3600, 5400]) {
+  const box = ['╭────────────╮', '│   Alive5   │', '╰────────────╯'];
+  const [wave] = mascots;
+  assert.deepEqual([wave.width, wave.height], [10, 4]);
+  for (const [width, left] of [
+    [40, 26],
+    [80, 66],
+    [100, 70],
+  ]) {
+    const sprite = (elapsed) => {
       const screen = app.frame(width, 24, app.replayAt + elapsed);
-      const rows = screen.cells.slice(3, 8).map((row) => row.slice(3));
+      const rows = screen.cells.slice(3, 8);
+      const chars = rows.map((row) => row.map((cell) => cell.ch).join(''));
       assert.deepEqual(
-        rows.map((row) =>
-          row
-            .map((cell) => cell.ch)
-            .join('')
-            .trimEnd(),
-        ),
-        banner,
+        chars.slice(1, 4).map((row) => row.slice(3, 17)),
+        box,
       );
+      assert.ok(chars.every((row) => !row.slice(17, left).trim() && !row.slice(left + 10).trim()));
       assert.ok(rows.flat().every((cell) => cell.fg === null && cell.bg === null));
+      return chars.slice(0, 4).map((row) => row.slice(left, left + 10));
+    };
+    assert.deepEqual(sprite(0), wave.frames[0].rows);
+    if (!app.motionLocked) {
+      assert.deepEqual(sprite(650), wave.frames[1].rows);
+      assert.deepEqual(sprite(3900), wave.frames[5].rows);
     }
   }
   await app.handleKey('a');
   const preview = app.frame(80, 24, app.replayAt + 650).plain();
-  assert.deepEqual(
-    preview
-      .split('\n')
-      .slice(3, 8)
-      .map((row) => row.slice(3).trimEnd()),
-    banner,
-  );
+  assert.ok(preview.includes(box[1]));
   assert.ok(preview.includes('‹ Plain ›'));
 });
 
@@ -543,6 +540,26 @@ test('appearance controls select logos and stop motion', async () => {
     else process.env.NO_COLOR = old;
     if (oldAnimation === undefined) delete process.env.ALIVE5_NO_ANIMATION;
     else process.env.ALIVE5_NO_ANIMATION = oldAnimation;
+  }
+});
+
+test('saving appearance while motion is locked keeps the saved motion preference', async () => {
+  const previous = process.env.ALIVE5_NO_ANIMATION;
+  process.env.ALIVE5_NO_ANIMATION = '1';
+  try {
+    const app = new Workspace({ settings: { motion: 'subtle', effect: 'orbit', theme: 'light' } });
+    assert.equal(app.state.motion, 'off');
+    await app.handleKey('a');
+    await app.handleKey('s');
+    assert.deepEqual(await appearance(), {
+      ...appearanceDefaults,
+      motion: 'subtle',
+      effect: 'orbit',
+      theme: 'light',
+    });
+  } finally {
+    if (previous === undefined) delete process.env.ALIVE5_NO_ANIMATION;
+    else process.env.ALIVE5_NO_ANIMATION = previous;
   }
 });
 
@@ -714,7 +731,7 @@ test('Cosmos preserves the label and content while Wave and comets animate', () 
     const snapshots = [2000, 6500, 13000].map((elapsed) => {
       const screen = app.frame(width, 24, app.replayAt + elapsed);
       assert.ok(screen.plain().includes('│   Alive5   │'));
-      assert.ok(screen.plain().includes('▄▄▄  ▄▄▄'));
+      assert.ok(screen.plain().includes('▄██▄▄██▄'));
       return screen.rows(24);
     });
     assert.deepEqual(snapshots[0].slice(8), snapshots[1].slice(8));
@@ -750,13 +767,7 @@ test('mascots switch in Appearance, save, and survive restart', async () => {
 
 test('both monochrome mascots fit every wordmark and theme and honor all motion modes', () => {
   const stills = {
-    wave: [
-      ' ▄▄▄  ▄▄▄     ',
-      '██▀████▀███   ',
-      '▀▄█▄██▄█▄██ ██',
-      '  ▄▄██▄▄▄▄▄█▀ ',
-      ' ▀▀▀▀  ▀▀▀▀   ',
-    ],
+    wave: ['▄██▄▄██▄  ', '█▀▄▀▀▄▀█ █', ' ▀▀██▀▀ ▄█', ' ▄██▀███▀ '],
     classic: ['  ▄▄▄  ▄▄▄  ', '▄█ ▄ ██ ▄ █▄', ' ▀▄▄▄██▄▄▄▀ ', '   ▄▄██▄▄   ', '  ▀▀▀  ▀▀▀  '],
   };
   for (const mascot of mascots) {
@@ -861,7 +872,7 @@ test(
         await until('Connect to Alive5');
         if (!restarted) {
           const line = term.buffer.active.getLine(5);
-          assert.equal(line.translateToString(true).trim(), '│   Alive5   │    ▀▄█▄██▄█▄██ ██');
+          assert.equal(line.translateToString(true, 3, 17), '│   Alive5   │');
           assert.ok(line.getCell(12).isFgDefault(), 'the numeral uses the terminal foreground');
         }
         p.write('\x1b');
@@ -883,7 +894,12 @@ test(
           }
           assert.ok(sprites.size > 1, 'the saved Classic animates continuously');
         } else {
-          assert.ok(text().includes('▄▄▄  ▄▄▄'));
+          assert.ok(text().includes('▄██▄▄██▄'));
+          await until('█▀▄▀▀▄▀█▄█');
+          assert.equal(
+            term.buffer.active.getLine(5).translateToString(true, 3, 17),
+            '│   Alive5   │',
+          );
           p.write('a');
           await until('Wave');
           p.write('\x1b[B\x1b[B\x1b[C');

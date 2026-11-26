@@ -56,7 +56,10 @@ export function start(app) {
   panel.section = null;
   app.changed();
   const update = () => {
-    panel.section = panel.lines.some((l) => l.status === 'listening') ? 'inbox' : null;
+    const section = panel.lines.some((l) => l.status === 'listening') ? 'inbox' : null;
+    const entered = section && panel.section !== section;
+    panel.section = section;
+    if (entered) return app.replay();
     app.changed();
   };
   app.inboxTask = (async () => {

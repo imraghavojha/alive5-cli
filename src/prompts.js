@@ -17,7 +17,7 @@ export async function banner() {
   ]);
   const width = Math.max(0, Math.min((process.stdout.columns || 38) - 4, 48));
   const screen = new Screen(width + 4, LOGO_HEIGHT + 2, 'terminal');
-  drawLogo(screen, { x: 2, y: 1, width });
+  drawLogo(screen, { x: 2, y: 1, width, motion: 'off' });
   const depth = 'NO_COLOR' in process.env ? 0 : process.env.COLORTERM === 'truecolor' ? 24 : 8;
   process.stdout.write(screen.rows(depth).join('\n') + '\n\n');
 }

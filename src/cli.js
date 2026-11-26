@@ -34,7 +34,7 @@ function build() {
     .option('--fields <names>', 'select top-level result fields, comma-separated')
     .option('--timeout <ms>', 'request timeout in milliseconds', '30000')
     .option('--no-color', 'disable color')
-    .option('--no-animation', 'disable logo animation')
+    .option('--no-animation', 'disable workspace animation')
     .option('--linear', 'use a line-by-line interactive workspace')
     .option('--no-input', 'never prompt')
     .exitOverride()

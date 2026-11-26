@@ -53,8 +53,7 @@ export const BANNER_PANELS = ['home', 'appearance'];
 
 export const showsBanner = (kind) => BANNER_PANELS.includes(kind);
 
-export const animatesHeader = ({ panel, effect }) =>
-  Boolean(panel.section) || (showsBanner(panel.kind) && effect !== 'plain');
+export const animatesHeader = (panel) => showsBanner(panel.kind) || Boolean(panel.section);
 
 const headerRows = (logo) =>
   logo ? Math.min(10, Math.max(8, logoById(logo).lines.length + 5)) : 3;

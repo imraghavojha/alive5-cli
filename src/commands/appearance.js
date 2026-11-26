@@ -7,7 +7,7 @@ const DESCRIPTIONS = {
   logo: 'set logo; frame is Label, variation 8',
   mascot: 'set the robot mascot',
   motion: 'set motion; full is continuous, subtle is entrance only',
-  effect: 'set the banner effect; plain is static and uses one color',
+  effect: 'set the wordmark and banner styling; plain uses the theme foreground',
   theme: 'set dark, light, terminal-native, or high-contrast colors',
 };
 

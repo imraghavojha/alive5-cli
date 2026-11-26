@@ -4,12 +4,12 @@ import { Terminal } from './terminal.js';
 import { Workspace } from './workspace.js';
 import { createDecoder } from './input.js';
 import { animatesHeader } from './layout.js';
+import { SUBTLE_DURATION_SECONDS } from './logo.js';
 import { appearance } from '../storage.js';
 import { stop as stopInbox } from './inbox.js';
 
 const FRAME_INTERVAL_MS = 1000 / 20;
 const ANIMATION_INTERVAL_MS = 160;
-const ENTRANCE_WINDOW_MS = 900;
 const SPINNER_INTERVAL_MS = 100;
 const NOTICE_MS = 4000;
 
@@ -132,12 +132,15 @@ export async function launchTui(options = {}) {
       workspace.state.tick++;
       workspace.changed();
     }
-    if (!animatesHeader(workspace.state)) return;
-    const settling = now - workspace.replayAt < ENTRANCE_WINDOW_MS;
-    if (!settling && now - lastAnimation < ANIMATION_INTERVAL_MS) return;
+    const { panel, motion } = workspace.state;
+    if (motion === 'off' || !animatesHeader(panel)) return;
+    const entranceEnd = workspace.replayAt + SUBTLE_DURATION_SECONDS * 1000;
+    // Render the still pose once after Subtle's entrance before going idle.
+    if (motion === 'subtle' && lastAnimation >= entranceEnd) return;
+    if (motion === 'full' && now >= entranceEnd && now - lastAnimation < ANIMATION_INTERVAL_MS)
+      return;
     lastAnimation = now;
-    if (workspace.state.motion === 'full' || (workspace.state.motion === 'subtle' && settling))
-      draw();
+    draw();
   }, FRAME_INTERVAL_MS);
 
   if (!options.account) workspace.connect().catch(onError);

@@ -47,7 +47,7 @@ async function open(app, section) {
 const snapshot = (app, width, elapsed) => app.frame(width, 24, app.replayAt + elapsed).rows(24);
 
 test('Outline fits beside Wave and compact section cues at 50 columns', async () => {
-  const app = create({ logo: 'outline', mascot: 'wave', effect: 'none' });
+  const app = create({ logo: 'outline', mascot: 'wave' });
   const outline = logos.find((logo) => logo.id === 'outline');
   const banner = () => app.frame(50, 24, app.replayAt + 2400).plain();
   for (const row of outline.lines) assert.ok(banner().includes(row));
@@ -171,7 +171,7 @@ test('no-animation environments keep section mascots static', async () => {
 });
 
 test(
-  'PTY scheduler animates section headers for both mascots and survives narrow resize and exit',
+  'PTY scheduler animates Plain section headers for both mascots and survives narrow resize and exit',
   { skip: process.platform === 'win32' },
   async () => {
     await preparePty();
@@ -182,7 +182,7 @@ test(
         DEMO_MASCOT: mascot.id,
         DEMO_THEME: 'terminal',
         DEMO_MOTION: 'full',
-        DEMO_EFFECT: 'cosmos',
+        DEMO_EFFECT: 'plain',
         TERM: 'xterm-256color',
         COLORTERM: 'truecolor',
       };
@@ -243,7 +243,7 @@ test(
         assert.ok(lines().join('\n').includes('Recent messages'));
         assert.ok(lines().join('\n').includes('│   Alive5   │'));
         const mascotX = 3 + mascotLeft(layout(40, 24, 'home', 'frame').logoWidth, mascot);
-        assert.equal(lines()[spriteRow].slice(mascotX).trimEnd(), edge);
+        assert.ok(lines()[spriteRow].slice(mascotX).startsWith(edge));
         assert.equal(
           lines()[spriteRow + mascot.height - 1].slice(mascotX).trimEnd(),
           mascot.frames[0].rows.at(-1).trimEnd(),
