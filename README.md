@@ -1,10 +1,10 @@
 # Alive5 CLI
 
-<img src="docs/media/hero.png" width="560" alt="The alive5 wordmark beside a cute retro cream computer with a terminal-prompt face">
+<img src="docs/media/hero.png" width="560" alt="The Alive5 CLI wordmark beside Wave, the monochrome robot mascot">
 
 Read conversations, reply, and send texts from your terminal. The same commands return clean JSON for scripts and AI agents.
 
-<img src="docs/media/demo.gif" width="800" alt="The current workspace with the Isometric Desktop mascot: Home, a conversation, a reply, and contact search">
+<img src="docs/media/demo.gif" width="800" alt="The workspace with the Wave mascot, showing Home, a conversation, a reply, and contact search">
 
 [Watch the full-resolution demo](docs/media/demo.mp4)
 
@@ -58,7 +58,11 @@ Run `alive5` with no arguments.
 | `?`               | Every shortcut                                              |
 | `q`               | Quit. `Ctrl+C` always quits.                                |
 
-**Appearance.** Press `a` to choose one of eight wordmarks, a computer mascot, a banner effect, and a Dark, Light, Terminal, or High contrast theme. Terminal colors and the compact Isometric Desktop are the defaults for new installs; select the Mascot row and use ←/→ to switch to Pocket Macintosh. Press `s` to save. Motion defaults to Full (continuous animation); Subtle plays an entrance and then holds still, and Off pauses it. Saved theme and motion preferences are preserved. Both mascots show typing dots in Messages, a typing cursor in Compose, a contact card in Contacts, and alternating speech bubbles in Conversations. These animate in the header at about 6 fps, leaving task content still. `NO_COLOR`, `ALIVE5_NO_ANIMATION=1`, or `--no-animation` turn motion off. You can also run `alive5 appearance set --mascot pocket-macintosh --motion full` or `alive5 appearance set --mascot isometric-desktop`. [Compare the wordmarks](docs/media/logos-v3.png) · [See both mascots in motion](docs/media/logo-motion.gif)
+**Appearance.** Press `a` to choose one of eight wordmarks, a robot mascot, a banner effect, and a Dark, Light, Terminal, or High contrast theme. New installs use Terminal colors and Wave, a monochrome robot that waves and blinks. Select the Mascot row, use ←/→ to switch to Classic for a quiet blink, and press `s` to save. If you had a retired mascot selected, the CLI uses Wave and preserves your other Appearance settings.
+
+Motion defaults to Full (continuous animation). Subtle plays an entrance and then holds still, and Off pauses it. Both mascots show typing dots in Messages, a typing cursor in Compose, a contact card in Contacts, and alternating speech bubbles in Conversations. These animate in the header at about 6 fps, leaving task content still. `NO_COLOR`, `ALIVE5_NO_ANIMATION=1`, or `--no-animation` turn motion off.
+
+You can also run `alive5 appearance set --mascot classic --motion full` to switch to Classic, or `alive5 appearance set --mascot wave` to return to Wave. [Compare the wordmarks](docs/media/logos-v3.png) · [See Wave and Classic in motion](docs/media/logo-motion.gif)
 
 **Line mode.** `alive5 --linear` runs the same workspace as plain lines of text, without full-screen drawing. It is meant for screen readers, logs, and slow connections, but it has not yet been tested with a screen reader.
 
@@ -125,7 +129,7 @@ npm test            # offline; never sends a message
 npm run check       # formatting and tests
 npm run demo        # the workspace with fake data
 npm run capture     # PTY screenshots into .local/design
-vhs docs/demo.tape  # re-record the GIF above with Charm's VHS
+vhs docs/demo.tape   # re-record the GIF and MP4 with Charm's VHS
 ```
 
 ## License

@@ -1,4 +1,4 @@
-# Records docs/media/demo.gif with Charm's VHS: `vhs docs/demo.tape`.
+# Records the README demo GIF and MP4 with Charm's VHS: `vhs docs/demo.tape`.
 # It drives the offline demo, so it never touches a real account.
 Output docs/media/demo.gif
 Output docs/media/demo.mp4
@@ -18,7 +18,7 @@ Set TypingSpeed 90ms
 Set Theme { "name": "Alive5", "background": "#111011", "foreground": "#e4e4e7", "cursor": "#eb5124", "selection": "#343033", "black": "#111011", "red": "#eb5124", "green": "#28c840", "yellow": "#febc2e", "blue": "#7aa2f7", "magenta": "#ff936b", "cyan": "#a09a95", "white": "#e4e4e7", "brightBlack": "#6d6669", "brightRed": "#ff936b", "brightGreen": "#28c840", "brightYellow": "#febc2e", "brightBlue": "#7aa2f7", "brightMagenta": "#ff936b", "brightCyan": "#a09a95", "brightWhite": "#ffffff" }
 
 Hide
-Type "env -u NO_COLOR -u ALIVE5_NO_ANIMATION COLORTERM=truecolor DEMO_THEME=terminal node scripts/tui-demo.mjs" Enter
+Type "env -u NO_COLOR -u ALIVE5_NO_ANIMATION -u DEMO_MASCOT -u DEMO_MOTION COLORTERM=truecolor DEMO_THEME=terminal node scripts/tui-demo.mjs" Enter
 Sleep 1s
 Show
 
@@ -51,5 +51,6 @@ Type "/hana" Sleep 1s
 Enter Sleep 2s
 Escape Sleep 400ms
 Escape Sleep 1s
+Hide
 Type "q"
 Sleep 500ms
