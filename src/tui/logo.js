@@ -124,9 +124,8 @@ export function drawLogo(
   const theme = screen.theme;
   const logo = logoById(variant);
   const character = mascotById(mascot);
-  // Keep the default label on small terminals. Other wordmarks can fall
-  // back to plain text to leave room for the section animations.
-  const gap = logo.id === 'frame' ? 2 : 9;
+  // The compact section cue occupies four cells beside the mascot.
+  const gap = 4;
   const fits =
     Math.max(...logo.lines.map((line) => line.length)) <= mascotLeft(width, character) - gap;
   const lines = fits ? logo.lines : [WORDMARK];

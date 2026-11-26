@@ -46,6 +46,17 @@ async function open(app, section) {
 }
 const snapshot = (app, width, elapsed) => app.frame(width, 24, app.replayAt + elapsed).rows(24);
 
+test('Outline fits beside Wave and compact section cues at 50 columns', async () => {
+  const app = create({ logo: 'outline', mascot: 'wave', effect: 'none' });
+  const outline = logos.find((logo) => logo.id === 'outline');
+  const banner = () => app.frame(50, 24, app.replayAt + 2400).plain();
+  for (const row of outline.lines) assert.ok(banner().includes(row));
+  await open(app, 'compose');
+  const active = banner();
+  for (const row of outline.lines) assert.ok(active.includes(row));
+  assert.ok(active.includes('>hi'));
+});
+
 test('all section animations leave content and header text still across widths, themes, and mascots', async () => {
   for (const mascot of mascots)
     for (const theme of Object.keys(themes))
